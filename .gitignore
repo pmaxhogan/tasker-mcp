@@ -10,3 +10,4 @@ coverage/
 # Device artifacts pulled during local testing
 tmp/
 *.apk
+out/

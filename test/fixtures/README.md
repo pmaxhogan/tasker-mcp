@@ -17,3 +17,9 @@ adding a file. Every fixture below was scanned and needed no scrubbing.
 
 Commit SHAs for the `public/` files are the latest commit touching that path
 at download time (2026-10-04).
+
+## Emulator exports
+
+| File | Provenance |
+|---|---|
+| `emulator/gt-actions.xml` | Built in the Tasker 6.6.20 trial GUI on the Pixel_8 emulator with `scripts/device/add-actions.mjs` (default args; placeholder `%gtvar` where a field was mandatory), exported with Data Backup. Ground truth for the arg layouts of the actions the phone project uses. |

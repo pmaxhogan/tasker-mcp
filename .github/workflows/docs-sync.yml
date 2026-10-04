@@ -1,0 +1,82 @@
+name: Docs sync
+
+# Scrapes the Tasker userguide (c) joaoapps and force-pushes the result to the
+# orphan `docs-data` branch. The text is deliberately never committed to main or
+# shipped in the npm tarball; tasker-mcp downloads it from that branch on first
+# use and caches it locally.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: docs-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "26"
+
+jobs:
+  sync:
+    name: Scrape and publish docs-data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Scrape the userguide
+        run: node scripts/docs-scrape.mjs --out out
+
+      - name: Compare with the published branch
+        id: diff
+        run: |
+          set -euo pipefail
+          changed=true
+          if git fetch --depth 1 origin docs-data 2>/dev/null; then
+            git show FETCH_HEAD:index.json > prev-index.json
+            if diff -q <(jq -S 'del(.generated)' prev-index.json) \
+                       <(jq -S 'del(.generated)' out/index.json) >/dev/null; then
+              changed=false
+            fi
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "index changed: $changed"
+
+      - name: Publish out/ to docs-data
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cat > out/README.md <<'EOF'
+          # tasker-mcp docs data
+
+          This branch holds a scraped copy of the Tasker userguide
+          (https://tasker.joaoapps.com/userguide/en/), converted to Markdown with a
+          small search index. It is generated weekly by the docs-sync workflow and
+          is rewritten from scratch on every run.
+
+          The content is (c) joaoapps (Joao Dias). It is mirrored here only so the
+          tasker-mcp server can search it for its users, and it is not covered by
+          the MIT license of the tasker-mcp code. For the originals, see the source
+          URL at the top of each page.
+          EOF
+          sed -i 's/^          //' out/README.md
+          cd out
+          git init -q -b docs-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "docs: scrape $(date -u +%Y-%m-%d)"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git" docs-data
