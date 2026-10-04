@@ -18,15 +18,23 @@ file and a fresh GUI export disagree, the GUI export wins: update this file.
   document order. Preserve document order on round trip; sort numerically when
   presenting.
 
+## Child order
+
+Tasker writes an element's children as: plain tags (no `sr`) in alphabetical
+order, then children that carry an `sr` attribute, sorted as strings by `sr`.
+Rebuilding whole tasks from the rho and ktools fixtures with this rule
+reproduces them byte for byte.
+
 ## Action
 
 `<Action sr="act0" ve="7">`. Children: `code`, then optional `coll`, `label`,
-`on`, `se`, then the args, then `ConditionList sr="if"` last.
+`on`, `se` (alphabetical), then the args, then `ConditionList sr="if"`.
 
 - Disabled action: `<on>false</on>` (absence means enabled).
 - Label: `<label>text</label>` (may be multi-line).
-- `<se>false</se>`: "continue task after error" off; seen on plugin actions.
-  Treat as an opaque boolean.
+- `<se>false</se>` means "Continue Task After Error" is ON; when `<se>` is
+  absent the task stops on error (MapTasker `taskedit.py`,
+  `action_continues_after_error`).
 - `<coll>false</coll>`: collapsed in the editor; only on If (37) / For (39).
 - Block actions: If 37, Else 43, Else If is 43 with a ConditionList, End If 38,
   For 39, End For 40. Else/End If usually have no args.
@@ -67,9 +75,14 @@ Booleans are `Int` with `val="0"`/`"1"`.
 ## Task
 
 `<Task sr="task396">` children: `cdate`, `edate`, `id`, `nme`, `pc`, `pri`,
-`stayawake`, `rty`, `ProfileVariable*`, `Img`, `Action*`.
+`rty`, `stayawake`, then `Action*` (`sr="actN"`), `Img` (`sr="icn"`), and
+`ProfileVariable*` (`sr="pvN"`), per the child-order rule.
 
 - `<pc>` is the task comment/description.
+- Profile enabled/disabled: a disabled object carries `<limit>true</limit>`
+  (MapTasker `objprops.py`). `<flags>` bits: 1 hide in notification, 2
+  collapsed, 4 delete after disable, 8 ignore settings restore, 16 ignore task
+  order, 32 run exit task on startup.
 - `<rty>` collision handling: 0/absent abort new, 1 abort existing, 2 run both.
 - Anonymous tasks (scene event handlers, profile-only tasks) have no `nme`.
 - Task Variables are `<ProfileVariable sr="pvN">` children with, in order,

@@ -1,0 +1,116 @@
+name: APK spec sync
+
+on:
+  schedule:
+    - cron: "30 6 * * 1" # Mondays 06:30 UTC
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: "Tasker APK URL (default: newest trial build on tasker.joaoapps.com)"
+        required: false
+        default: ""
+
+concurrency:
+  group: apk-spec-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  NODE_VERSION: "26"
+
+jobs:
+  sync:
+    name: Sync action spec from the Tasker APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Download the Tasker APK
+        id: apk
+        env:
+          APK_URL: ${{ inputs.apk_url }}
+        run: |
+          if [ -n "$APK_URL" ]; then
+            node scripts/download-tasker-apk.mjs --out "$RUNNER_TEMP/Tasker.apk" --url "$APK_URL"
+          else
+            node scripts/download-tasker-apk.mjs --out "$RUNNER_TEMP/Tasker.apk"
+          fi
+
+      - name: Check for aapt2
+        id: sdk
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-<unset>}"
+          ls "${ANDROID_HOME:-/nonexistent}/build-tools" || true
+          if ls "${ANDROID_HOME:-/nonexistent}"/build-tools/*/aapt2 >/dev/null 2>&1; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up the Android SDK (build-tools missing on the runner)
+        if: steps.sdk.outputs.present != 'true'
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+
+      - name: Install build-tools
+        if: steps.sdk.outputs.present != 'true'
+        run: sdkmanager "build-tools;35.0.0"
+
+      - name: Extract strings from the APK
+        run: node scripts/apk-extract.mjs "$RUNNER_TEMP/Tasker.apk"
+
+      - name: Rebuild the action spec
+        run: node scripts/build-spec.mjs
+
+      - name: Detect changes
+        id: diff
+        run: |
+          if git diff --quiet -- data/ && [ -z "$(git ls-files --others --exclude-standard -- data/)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "data/ is up to date with Tasker ${{ steps.apk.outputs.version }}"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the PR body
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.apk.outputs.version }}
+        run: |
+          {
+            echo "Automated sync of \`data/\` from the Tasker $VERSION APK (\`scripts/apk-extract.mjs\` then \`scripts/build-spec.mjs\`)."
+            echo
+            echo "**New \`an_*\` names need a human or agent to build the action in the Tasker GUI and export its XML before adding it to the action table.** Entries below in \`unmatched-an-names.json\` are candidates only."
+            echo
+            echo "### data/apk-meta.json"
+            echo '```diff'
+            git diff --no-color -U2 -- data/apk-meta.json
+            echo '```'
+            echo
+            echo "### data/unmatched-an-names.json"
+            echo '```diff'
+            git diff --no-color -U1 -- data/unmatched-an-names.json | head -n 300
+            echo '```'
+            echo
+            echo "### Changed files"
+            echo '```'
+            git status --short -- data/
+            echo '```'
+          } > "$RUNNER_TEMP/pr-body.md"
+
+      - name: Open or update the PR
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        with:
+          branch: chore/apk-spec-sync
+          add-paths: data/
+          commit-message: "chore(data): sync action spec from Tasker ${{ steps.apk.outputs.version }}"
+          title: "chore(data): sync action spec from Tasker ${{ steps.apk.outputs.version }}"
+          body-path: ${{ runner.temp }}/pr-body.md
+          delete-branch: true
