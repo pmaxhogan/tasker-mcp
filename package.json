@@ -1,0 +1,74 @@
+{
+  "name": "@pmaxhogan/tasker-mcp",
+  "version": "0.1.0",
+  "description": "MCP server giving AI agents full read, edit, and run access to Tasker on Android over its HTTP Request event and XML round-trip.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Max Hogan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pmaxhogan/tasker-mcp.git"
+  },
+  "homepage": "https://github.com/pmaxhogan/tasker-mcp#readme",
+  "bugs": "https://github.com/pmaxhogan/tasker-mcp/issues",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "tasker",
+    "android",
+    "automation",
+    "claude"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "bin": {
+    "tasker-mcp": "bin/tasker-mcp.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "bin/",
+    "dist/",
+    "data/",
+    "tasker/",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "//typescript": "Pinned to 6.0.x, not 7.x: typescript-eslint 8.x declares peer typescript '>=4.8.4 <6.1.0'. Revisit when typescript-eslint supports TS 7.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node bin/tasker-mcp.js",
+    "lint": "eslint . && npm run lint:ascii",
+    "lint:fix": "eslint . --fix",
+    "lint:ascii": "node scripts/check-ascii.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:device": "vitest run --config vitest.device.config.ts",
+    "coverage:ratchet": "node scripts/coverage-ratchet.mjs",
+    "coverage:ratchet:write": "node scripts/coverage-ratchet.mjs --write"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "^5.0.3",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
+  }
+}

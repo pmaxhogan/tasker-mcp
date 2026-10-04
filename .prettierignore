@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+coverage-baseline.json
+data/
+test/fixtures/
+tasker/*.xml
+docs/feasibility.md

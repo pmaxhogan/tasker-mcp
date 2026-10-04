@@ -1,0 +1,78 @@
+name: Publish
+
+# Every push to main publishes a patch release. The version is computed from
+# the registry, never committed back: package.json holds major.minor.0 as the
+# floor, and the next version is max(latest published patch + 1, floor).
+#
+# The real publish is armed only when npm auth exists: either an NPM_TOKEN
+# repository secret, or trusted publishing (OIDC) configured on npmjs.com and
+# the repository variable NPM_TRUSTED_PUBLISHING set to "true". Without
+# either, the job runs `npm publish --dry-run` and skips the tag.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+
+      - name: Decide whether npm auth is configured
+        id: auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TRUSTED: ${{ vars.NPM_TRUSTED_PUBLISHING }}
+        run: |
+          if [ -n "$NPM_TOKEN" ] || [ "$TRUSTED" = "true" ]; then
+            echo "armed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "armed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::npm auth not configured; running publish --dry-run only"
+          fi
+
+      - name: Compute the next version
+        id: version
+        run: |
+          name=$(node -p "require('./package.json').name")
+          base=$(node -p "require('./package.json').version")
+          latest=$(npm view "$name" version 2>/dev/null || echo 0.0.0)
+          next=$(node scripts/next-version.mjs "$latest" "$base")
+          echo "latest=$latest base=$base next=$next"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          npm version "$next" --no-git-tag-version --allow-same-version
+
+      - name: Dry run
+        if: steps.auth.outputs.armed != 'true'
+        run: npm publish --dry-run --access public
+
+      - name: Publish
+        if: steps.auth.outputs.armed == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
+
+      - name: Tag the release
+        if: steps.auth.outputs.armed == 'true'
+        env:
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          git tag "v$NEXT"
+          git push origin "v$NEXT"

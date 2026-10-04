@@ -1,0 +1,8 @@
+#!/bin/sh
+# Blocks a push that would publish a secret. Enable once per clone with:
+#   git config core.hooksPath .githooks
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-push: gitleaks not installed; skipping secret scan" >&2
+  exit 0
+fi
+exec gitleaks git --redact --no-banner .

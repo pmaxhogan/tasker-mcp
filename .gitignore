@@ -1,0 +1,12 @@
+# Local agent workspace: holds device serials and home paths. Never commit.
+.claude/
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+# Device artifacts pulled during local testing
+tmp/
+*.apk
