@@ -1,0 +1,54 @@
+[
+  {
+    "code": 1000,
+    "name": "Plugin"
+  },
+  {
+    "code": 151,
+    "name": "Deprecated"
+  },
+  {
+    "code": 411,
+    "name": "Deprecated"
+  },
+  {
+    "code": 500,
+    "name": "Deprecated"
+  },
+  {
+    "code": 510,
+    "name": "Deprecated"
+  },
+  {
+    "code": 520,
+    "name": "Deprecated"
+  },
+  {
+    "code": 530,
+    "name": "Deprecated"
+  },
+  {
+    "code": 540,
+    "name": "Deprecated"
+  },
+  {
+    "code": 557,
+    "name": "Deprecated"
+  },
+  {
+    "code": 594,
+    "name": "Deprecated"
+  },
+  {
+    "code": 696,
+    "name": "Deprecated"
+  },
+  {
+    "code": 777,
+    "name": "Deprecated"
+  },
+  {
+    "code": 876,
+    "name": "Deprecated"
+  }
+]

@@ -13,6 +13,10 @@ export interface XmlAttr {
   /** Exact source spelling of the value (between the quotes), when parsed. */
   raw?: string;
   quote?: '"' | "'";
+  /** Whitespace before the attribute name in the start tag; defaults to one space. */
+  pre?: string;
+  /** Exact spelling of the `=` including any surrounding whitespace; defaults to `=`. */
+  eq?: string;
 }
 
 export interface XmlElement {
@@ -24,6 +28,8 @@ export interface XmlElement {
   selfClosing: boolean;
   /** Whitespace inside the start tag before `>` or `/>`, e.g. `<x a="1" />`. */
   tagTail?: string;
+  /** Whitespace inside the end tag before `>`, e.g. `</x >`. */
+  closeTail?: string;
 }
 
 export interface XmlText {

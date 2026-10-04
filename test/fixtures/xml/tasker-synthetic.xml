@@ -1,0 +1,35 @@
+<TaskerData sr="" dvi="1" tv="6.7.6-beta">
+	<Task sr="task12">
+		<cdate>1700000000000</cdate>
+		<edate>1700000000001</edate>
+		<id>12</id>
+		<nme>Synthetic &amp; Sample</nme>
+		<pri>100</pri>
+		<Action sr="act0" ve="7">
+			<code>130</code>
+			<Str sr="arg0" ve="3">Name</Str>
+			<Int sr="arg1" val="100"/>
+			<Int sr="arg2">
+				<var>%foo</var>
+			</Int>
+			<Str sr="arg3" ve="3"/>
+		</Action>
+		<Action sr="act1" ve="7">
+			<code>548</code>
+			<Str sr="arg0" ve="3">a &lt; b &gt; c&#10;line two &apos;quoted&apos; &#39;also&#39; "plain" caf&#233; &#x1F600; 😀 日本語</Str>
+			<Int sr="arg1" val="0"/>
+		</Action>
+		<Action sr="act2" ve="7">
+			<code>2046367074</code>
+			<Bundle sr="arg0">
+				<Vals sr="val">
+					<com.twofortyfouram.locale.intent.extra.BLURB>text with %var and &lt;tags&gt;</com.twofortyfouram.locale.intent.extra.BLURB>
+					<com.twofortyfouram.locale.intent.extra.BLURB-type>java.lang.String</com.twofortyfouram.locale.intent.extra.BLURB-type>
+					<net.dinglisch.android.tasker.subbundled>true</net.dinglisch.android.tasker.subbundled>
+					<net.dinglisch.android.tasker.subbundled-type>java.lang.Boolean</net.dinglisch.android.tasker.subbundled-type>
+				</Vals>
+			</Bundle>
+			<Str sr="arg1" ve="3">com.example.plugin</Str>
+		</Action>
+	</Task>
+</TaskerData>

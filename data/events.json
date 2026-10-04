@@ -1,0 +1,330 @@
+[
+  {
+    "code": 2,
+    "name": "Phone Offhook"
+  },
+  {
+    "code": 4,
+    "name": "Phone Idle"
+  },
+  {
+    "code": 6,
+    "name": "Phone Ringing"
+  },
+  {
+    "code": 7,
+    "name": "Received Text"
+  },
+  {
+    "code": 8,
+    "name": "Received Data SMS"
+  },
+  {
+    "code": 134,
+    "name": "Card Mounted"
+  },
+  {
+    "code": 135,
+    "name": "Card Unmounted"
+  },
+  {
+    "code": 136,
+    "name": "Card Removed"
+  },
+  {
+    "code": 201,
+    "name": "Assistance Request"
+  },
+  {
+    "code": 203,
+    "name": "Battery Changed"
+  },
+  {
+    "code": 205,
+    "name": "Battery Full"
+  },
+  {
+    "code": 206,
+    "name": "Battery Overheating"
+  },
+  {
+    "code": 208,
+    "name": "Display On"
+  },
+  {
+    "code": 210,
+    "name": "Display Off"
+  },
+  {
+    "code": 215,
+    "name": "Button: Camera"
+  },
+  {
+    "code": 216,
+    "name": "Button: Long Search"
+  },
+  {
+    "code": 220,
+    "name": "File Moved"
+  },
+  {
+    "code": 222,
+    "name": "File Modified"
+  },
+  {
+    "code": 224,
+    "name": "File Closed"
+  },
+  {
+    "code": 226,
+    "name": "File Opened"
+  },
+  {
+    "code": 228,
+    "name": "File Deleted"
+  },
+  {
+    "code": 230,
+    "name": "File Attribute Change"
+  },
+  {
+    "code": 300,
+    "name": "Date Set"
+  },
+  {
+    "code": 302,
+    "name": "Time/Date Set"
+  },
+  {
+    "code": 303,
+    "name": "Timer Change"
+  },
+  {
+    "code": 304,
+    "name": "Timezone Set"
+  },
+  {
+    "code": 305,
+    "name": "Alarm Clock"
+  },
+  {
+    "code": 306,
+    "name": "Alarm Done"
+  },
+  {
+    "code": 307,
+    "name": "Monitor Start"
+  },
+  {
+    "code": 309,
+    "name": "Steps Taken"
+  },
+  {
+    "code": 411,
+    "name": "Device Boot"
+  },
+  {
+    "code": 413,
+    "name": "Device Shutdown"
+  },
+  {
+    "code": 422,
+    "name": "Device Storage Low"
+  },
+  {
+    "code": 424,
+    "name": "Screebl / TSC"
+  },
+  {
+    "code": 425,
+    "name": "K9 Email Received"
+  },
+  {
+    "code": 426,
+    "name": "Widget Locker"
+  },
+  {
+    "code": 427,
+    "name": "OpenWatch"
+  },
+  {
+    "code": 428,
+    "name": "Kaloer Clock"
+  },
+  {
+    "code": 429,
+    "name": "Locale Changed"
+  },
+  {
+    "code": 444,
+    "name": "Pomodroido"
+  },
+  {
+    "code": 445,
+    "name": "Radardroid"
+  },
+  {
+    "code": 446,
+    "name": "Gentle Alarm"
+  },
+  {
+    "code": 447,
+    "name": "Reddit Notify"
+  },
+  {
+    "code": 448,
+    "name": "Notify My Android"
+  },
+  {
+    "code": 450,
+    "name": "New Package"
+  },
+  {
+    "code": 451,
+    "name": "Package Removed"
+  },
+  {
+    "code": 453,
+    "name": "Package Updated"
+  },
+  {
+    "code": 460,
+    "name": "Wallpaper Changed"
+  },
+  {
+    "code": 461,
+    "name": "Notification"
+  },
+  {
+    "code": 462,
+    "name": "Button Widget Clicked"
+  },
+  {
+    "code": 463,
+    "name": "New Window"
+  },
+  {
+    "code": 464,
+    "name": "Notification Removed"
+  },
+  {
+    "code": 599,
+    "name": "Intent Received"
+  },
+  {
+    "code": 1000,
+    "name": "Display Unlocked"
+  },
+  {
+    "code": 1000,
+    "name": "Plugin"
+  },
+  {
+    "code": 2000,
+    "name": "Notification Click"
+  },
+  {
+    "code": 2003,
+    "name": "Missed Call"
+  },
+  {
+    "code": 2005,
+    "name": "SMS Success"
+  },
+  {
+    "code": 2010,
+    "name": "SMS Failure"
+  },
+  {
+    "code": 2050,
+    "name": "Quick Setting Clicked"
+  },
+  {
+    "code": 2075,
+    "name": "Custom Setting"
+  },
+  {
+    "code": 2076,
+    "name": "NFC Tag"
+  },
+  {
+    "code": 2077,
+    "name": "Secondary App Opened"
+  },
+  {
+    "code": 2078,
+    "name": "App Changed"
+  },
+  {
+    "code": 2079,
+    "name": "Volume Long Press"
+  },
+  {
+    "code": 2080,
+    "name": "BT Connection"
+  },
+  {
+    "code": 2081,
+    "name": "Music Track Changed"
+  },
+  {
+    "code": 2083,
+    "name": "Significant Motion"
+  },
+  {
+    "code": 2084,
+    "name": "Alarm Changed"
+  },
+  {
+    "code": 2085,
+    "name": "Logcat Entry"
+  },
+  {
+    "code": 2088,
+    "name": "Any Sensor"
+  },
+  {
+    "code": 2091,
+    "name": "Command"
+  },
+  {
+    "code": 2092,
+    "name": "Power Menu Shown"
+  },
+  {
+    "code": 2093,
+    "name": "Assistant Action"
+  },
+  {
+    "code": 2094,
+    "name": "Call Screened"
+  },
+  {
+    "code": 2095,
+    "name": "Tick"
+  },
+  {
+    "code": 2096,
+    "name": "Sleeping"
+  },
+  {
+    "code": 3000,
+    "name": "Gesture"
+  },
+  {
+    "code": 3001,
+    "name": "Shake"
+  },
+  {
+    "code": 3050,
+    "name": "Variable Set"
+  },
+  {
+    "code": 3060,
+    "name": "Variable Cleared"
+  },
+  {
+    "code": 3071,
+    "name": "Zoom Click"
+  }
+]

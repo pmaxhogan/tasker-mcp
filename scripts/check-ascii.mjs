@@ -39,6 +39,11 @@ const SKIP_DIRS = new Set([
 
 const SKIP_FILES = new Set(["package-lock.json"]);
 
+// Third-party content kept byte for byte (Tasker exports used as round-trip
+// fixtures, vendored upstream tables). Rewriting their dashes would break the
+// byte-identical round-trip tests and the provenance claim.
+const SKIP_PATHS = new Set(["test/fixtures", "data/vendor"]);
+
 const BINARY_EXTENSIONS = new Set([
   ".png",
   ".jpg",
@@ -66,6 +71,7 @@ function* walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (SKIP_DIRS.has(entry.name)) continue;
+      if (SKIP_PATHS.has(relative(ROOT, join(dir, entry.name)).split(sep).join("/"))) continue;
       yield* walk(join(dir, entry.name));
       continue;
     }

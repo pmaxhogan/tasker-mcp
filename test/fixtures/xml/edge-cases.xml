@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding="UTF-8" standalone="yes" ?>
+<!-- leading comment with <markup> & stuff -->
+<!DOCTYPE root [
+  <!ENTITY custom "value">
+  <!ELEMENT root ANY>
+]>
+<?app-pi some data?>
+<root  a = "1"	b='two &quot; &apos;'
+      c="&#x41;&#66;" >
+  <empty></empty>
+  <selfclose/>
+  <spaced />
+  <tail ></tail >
+  <![CDATA[ raw <not> &markup; ]]>
+  <!-- inner comment -->
+  <?inner pi?>
+  <ent>&custom; &amp;amp; &lt;&gt;</ent>
+  <x:ns xmlns:x="urn:example" x:attr="v">ns</x:ns>
+</root>
+<!-- trailing comment -->
+

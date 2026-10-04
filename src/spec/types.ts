@@ -3,14 +3,15 @@
  * task_all_actions.json and enriched from the Tasker APK; see data/NOTICE.
  */
 
-/** MapTasker arg type enum. */
+/** MapTasker arg type enum (maptasker arg_specs.json; 7 ConditionList and 8 Img are runtime-only). */
 export const ArgType = {
   Int: 0,
   String: 1,
   App: 2,
   Boolean: 3,
-  Img: 4,
+  Icon: 4,
   Bundle: 5,
+  Scene: 6,
 } as const;
 export type ArgTypeCode = (typeof ArgType)[keyof typeof ArgType];
 

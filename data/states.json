@@ -1,0 +1,202 @@
+[
+  {
+    "code": 2,
+    "name": "BT Status"
+  },
+  {
+    "code": 3,
+    "name": "BT Connected"
+  },
+  {
+    "code": 4,
+    "name": "BT Near"
+  },
+  {
+    "code": 5,
+    "name": "Calendar Entry"
+  },
+  {
+    "code": 7,
+    "name": "Cell Near"
+  },
+  {
+    "code": 10,
+    "name": "Power"
+  },
+  {
+    "code": 12,
+    "name": "HDMI Plugged"
+  },
+  {
+    "code": 14,
+    "name": "Power Save Mode"
+  },
+  {
+    "code": 16,
+    "name": "Device Idle"
+  },
+  {
+    "code": 30,
+    "name": "Headset Plugged"
+  },
+  {
+    "code": 40,
+    "name": "Call"
+  },
+  {
+    "code": 50,
+    "name": "Keyboard Out"
+  },
+  {
+    "code": 80,
+    "name": "Docked"
+  },
+  {
+    "code": 100,
+    "name": "Airplane Mode"
+  },
+  {
+    "code": 103,
+    "name": "Light Level"
+  },
+  {
+    "code": 104,
+    "name": "Pressure"
+  },
+  {
+    "code": 105,
+    "name": "Media Button"
+  },
+  {
+    "code": 106,
+    "name": "Magnetic Field"
+  },
+  {
+    "code": 107,
+    "name": "Missed Call"
+  },
+  {
+    "code": 110,
+    "name": "Mobile Network"
+  },
+  {
+    "code": 120,
+    "name": "Orientation"
+  },
+  {
+    "code": 122,
+    "name": "Display Orientation"
+  },
+  {
+    "code": 123,
+    "name": "Display State"
+  },
+  {
+    "code": 125,
+    "name": "Proximity Sensor"
+  },
+  {
+    "code": 135,
+    "name": "Auto-Sync"
+  },
+  {
+    "code": 136,
+    "name": "VPN Connected"
+  },
+  {
+    "code": 140,
+    "name": "Battery Level"
+  },
+  {
+    "code": 141,
+    "name": "Battery Temperature"
+  },
+  {
+    "code": 142,
+    "name": "Profile Active"
+  },
+  {
+    "code": 143,
+    "name": "Task Running"
+  },
+  {
+    "code": 145,
+    "name": "Signal Strength"
+  },
+  {
+    "code": 147,
+    "name": "Unread Text"
+  },
+  {
+    "code": 148,
+    "name": "Pen Out"
+  },
+  {
+    "code": 149,
+    "name": "Pen Menu"
+  },
+  {
+    "code": 150,
+    "name": "USB Connected"
+  },
+  {
+    "code": 154,
+    "name": "Active User"
+  },
+  {
+    "code": 160,
+    "name": "Wifi Connected"
+  },
+  {
+    "code": 161,
+    "name": "Ethernet Connect"
+  },
+  {
+    "code": 165,
+    "name": "Variable Value"
+  },
+  {
+    "code": 170,
+    "name": "Wifi Near"
+  },
+  {
+    "code": 175,
+    "name": "Dreaming"
+  },
+  {
+    "code": 180,
+    "name": "Temperature"
+  },
+  {
+    "code": 182,
+    "name": "Heart Rate"
+  },
+  {
+    "code": 185,
+    "name": "Humidity"
+  },
+  {
+    "code": 186,
+    "name": "Custom Setting"
+  },
+  {
+    "code": 188,
+    "name": "Dark Mode"
+  },
+  {
+    "code": 190,
+    "name": "Any Sensor"
+  },
+  {
+    "code": 192,
+    "name": "Sleeping"
+  },
+  {
+    "code": 195,
+    "name": "NFC Status"
+  },
+  {
+    "code": 1000,
+    "name": "Plugin"
+  }
+]
