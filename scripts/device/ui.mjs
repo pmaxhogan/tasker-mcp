@@ -119,10 +119,20 @@ export async function waitFor(q, sec = 15) {
 
 /** Known nag/compat dialogs: tap through them until none is showing. */
 export async function dismiss() {
-  const buttons = ["text=Don't Show Again", "text=STOP REMINDING", "text=DISABLE", "text=OK", "text=Ok", "text=Dismiss", "text=Got it"];
+  const buttons = [
+    "text=Don't Show Again",
+    "text=STOP REMINDING",
+    "text=DISABLE",
+    "text=OK",
+    "text=Ok",
+    "text=Dismiss",
+    "text=Got it",
+  ];
   for (let i = 0; i < 6; i++) {
     const nodes = dump();
-    const isDialog = nodes.some((n) => n.id === "android:id/alertTitle" || n.id.endsWith(":id/title_template"));
+    const isDialog = nodes.some(
+      (n) => n.id === "android:id/alertTitle" || n.id.endsWith(":id/title_template"),
+    );
     if (!isDialog) return;
     const btn = buttons.map((b) => find(b, nodes)[0]).find(Boolean);
     if (!btn) return;
@@ -139,7 +149,15 @@ async function main() {
       for (const n of dump()) {
         if (!n.text && !n.desc && !n.clickable && !n.id) continue;
         if (f && !matches(n, f) && !n.id.includes(f)) continue;
-        const parts = [n.cls, n.text && JSON.stringify(n.text), n.desc && `desc=${JSON.stringify(n.desc)}`, n.id && `id=${n.id.split("/").pop()}`, n.clickable ? "click" : "", n.checked ? "checked" : "", `@${n.x},${n.y}`];
+        const parts = [
+          n.cls,
+          n.text && JSON.stringify(n.text),
+          n.desc && `desc=${JSON.stringify(n.desc)}`,
+          n.id && `id=${n.id.split("/").pop()}`,
+          n.clickable ? "click" : "",
+          n.checked ? "checked" : "",
+          `@${n.x},${n.y}`,
+        ];
         console.log(parts.filter(Boolean).join(" "));
       }
       break;
@@ -160,7 +178,12 @@ async function main() {
       typeText(rest.join(" "));
       break;
     case "key":
-      adb("shell", "input", "keyevent", rest[0].startsWith("KEYCODE_") ? rest[0] : `KEYCODE_${rest[0]}`);
+      adb(
+        "shell",
+        "input",
+        "keyevent",
+        rest[0].startsWith("KEYCODE_") ? rest[0] : `KEYCODE_${rest[0]}`,
+      );
       break;
     case "wait":
       console.log(JSON.stringify(await waitFor(rest[0], Number(rest[1] ?? 15))));
