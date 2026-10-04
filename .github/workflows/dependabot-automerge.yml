@@ -11,7 +11,9 @@ permissions:
 jobs:
   automerge:
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    # github.actor alone can be the last re-runner rather than the author, so
+    # also require the PR itself to be authored by Dependabot.
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - id: metadata
         uses: dependabot/fetch-metadata@v3
