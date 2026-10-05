@@ -268,7 +268,9 @@ The phone runs a Tasker project with one HTTP Request profile and a JavaScript
 dispatcher. This server talks to it over HTTP and does all XML parsing, editing,
 and validation on the desktop. The design and the reasoning behind each decision
 are in [docs/architecture.md](docs/architecture.md). The route table and the
-Tasker behaviour verified on a device are in [tasker/README.md](tasker/README.md).
+Tasker behaviour verified on a device are in [tasker/README.md](tasker/README.md). How the
+library was checked against Tasker's own editor, in both directions, is in
+[docs/conformance.md](docs/conformance.md).
 
 ## Limitations
 
