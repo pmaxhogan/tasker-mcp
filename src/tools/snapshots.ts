@@ -19,6 +19,8 @@ import { wrapForImport } from "../model/convert.ts";
 import { TaskerDoc } from "../model/document.ts";
 import type { XmlElement } from "../xml/index.ts";
 import { ToolError, handler, ok, type ToolContext } from "./context.ts";
+import { exclusive, finishMutation } from "./mutate.ts";
+import { PERSIST_HINT } from "./persist.ts";
 
 /** Fallback Tasker version for the import wrapper when the snapshot has none. */
 const DEFAULT_TV = "6.6.20";
@@ -91,9 +93,20 @@ export function register(server: McpServer, ctx: ToolContext): void {
       if (chosen === "config") {
         // Check before taking the safety snapshot, so a refusal leaves nothing behind.
         ctx.assertWritable("config", `restore ${info.id}`);
-        const before = await ctx.snapshot("restore_snapshot", `before restore ${info.id}`);
-        await ctx.replaceConfig(xml);
-        return ok({ ok: true, mode: chosen, restored: info.id, undo: before.info.id });
+        return exclusive(async () => {
+          const before = await ctx.snapshot("restore_snapshot", `before restore ${info.id}`);
+          await ctx.replaceConfig(xml);
+          const warnings: string[] = [];
+          const persist = await finishMutation(ctx, warnings);
+          return ok({
+            ok: true,
+            mode: chosen,
+            restored: info.id,
+            undo: before.info.id,
+            ...(warnings.length > 0 ? { warnings } : {}),
+            ...persist,
+          });
+        });
       }
 
       const allowed: { name: string; el: XmlElement }[] = [];
@@ -114,29 +127,38 @@ export function register(server: McpServer, ctx: ToolContext): void {
           "check TASKER_WRITE_ALLOW, or restore with mode config",
         );
       }
-      const before = await ctx.snapshot("restore_snapshot", `before restore ${info.id}`);
-      const client = await ctx.client();
-      const tv = doc.taskerVersion ?? DEFAULT_TV;
-      const restored: string[] = [];
-      const failed: { name: string; error: string }[] = [];
-      for (const { name, el } of allowed) {
-        try {
-          await client.importXml(wrapForImport([el], tv));
-          restored.push(name);
-        } catch (e) {
-          failed.push({ name, error: e instanceof Error ? e.message : String(e) });
+      return exclusive(async () => {
+        const before = await ctx.snapshot("restore_snapshot", `before restore ${info.id}`);
+        const client = await ctx.client();
+        const tv = doc.taskerVersion ?? DEFAULT_TV;
+        const restored: string[] = [];
+        const failed: { name: string; error: string }[] = [];
+        for (const { name, el } of allowed) {
+          try {
+            await client.importXml(wrapForImport([el], tv));
+            restored.push(name);
+          } catch (e) {
+            failed.push({ name, error: e instanceof Error ? e.message : String(e) });
+          }
         }
-      }
-      const result: Record<string, unknown> = {
-        ok: failed.length === 0,
-        mode: chosen,
-        restored: info.id,
-        undo: before.info.id,
-        tasks: restored,
-      };
-      if (skipped.length > 0) result.skipped = skipped;
-      if (failed.length > 0) result.failed = failed;
-      return failed.length === 0 ? ok(result) : { ...ok(result), isError: true };
+        const warnings: string[] = [];
+        const persist =
+          restored.length > 0
+            ? await finishMutation(ctx, warnings)
+            : { persisted: false, persistHint: PERSIST_HINT };
+        const result: Record<string, unknown> = {
+          ok: failed.length === 0,
+          mode: chosen,
+          restored: info.id,
+          undo: before.info.id,
+          tasks: restored,
+        };
+        if (skipped.length > 0) result.skipped = skipped;
+        if (failed.length > 0) result.failed = failed;
+        if (warnings.length > 0) result.warnings = warnings;
+        Object.assign(result, persist);
+        return failed.length === 0 ? ok(result) : { ...ok(result), isError: true };
+      });
     }),
   );
 }

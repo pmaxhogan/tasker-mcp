@@ -76,6 +76,15 @@ Every mutating tool follows the same steps:
    landed as planned.
 7. **Duplicate cleanup.** If Tasker produced a duplicate (for example a task
    imported under a second id), remove it through the same path.
+8. **Persist.** Imports change only Tasker's running configuration; Tasker
+   writes to disk only when its editor saves. Every result therefore reports
+   `persisted`. With `TASKER_AUTO_PERSIST` the pipeline ends with
+   `persist_config` (`src/tools/persist.ts`): `/backup` refreshes
+   `tasker-mcp-live.xml`, then a uiautomator driver (`src/device/ui.ts`) runs
+   the editor's Data > Restore of that file and leaves the editor so it saves,
+   and the configuration is re-read to confirm nothing changed. Otherwise the
+   agent calls `persist_config` after a batch of changes. A failed
+   auto-persist is a warning, not an error: the change itself landed.
 
 ## The phone project
 

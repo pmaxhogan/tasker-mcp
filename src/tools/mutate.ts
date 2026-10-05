@@ -9,11 +9,14 @@
  * Config writes (profiles, projects, deletes, renames): snapshot -> edit a
  * TaskerDoc built from the snapshot -> POST /config -> re-fetch.
  *
- * Every mutation runs under one process-wide async mutex. The lock is
- * reentrant (AsyncLocalStorage), so a tool may compose applyTask and
- * withConfigEdit without deadlocking.
+ * Every mutation runs under one process-wide async mutex (src/tools/lock.ts).
+ * The lock is reentrant (AsyncLocalStorage), so a tool may compose applyTask
+ * and withConfigEdit without deadlocking.
+ *
+ * Both pipelines end with finishMutation: Tasker only writes its running
+ * configuration to disk when its editor saves, so every result reports
+ * `persisted`, and TASKER_AUTO_PERSIST runs persist_config here.
  */
-import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 import { planReplaceTask, BASE_PROJECT, type ReplacePlan } from "../edit/plan.ts";
 import { diffTasks, findDuplicates } from "../edit/verify.ts";
@@ -54,23 +57,49 @@ import {
   type XmlElement,
 } from "../xml/index.ts";
 import { ToolError, type Snapshot, type ToolContext } from "./context.ts";
+import { exclusive } from "./lock.ts";
+import { canPersist, persistConfig, PERSIST_HINT } from "./persist.ts";
 
 // ---------------------------------------------------------------------------
-// Mutex
+// Mutex (src/tools/lock.ts) and persistence
 // ---------------------------------------------------------------------------
 
-const held = new AsyncLocalStorage<true>();
-let tail: Promise<unknown> = Promise.resolve();
+export { exclusive };
 
 /**
- * Run `fn` while holding the mutation lock. Nested calls (from inside a
- * locked section) run inline, so composite tools never deadlock.
+ * Whether a mutation's result is saved to Tasker's on-disk configuration.
+ * Every mutating tool result carries these fields; see src/tools/persist.ts.
  */
-export function exclusive<T>(fn: () => Promise<T>): Promise<T> {
-  if (held.getStore() === true) return fn();
-  const run = tail.then(() => held.run(true, fn));
-  tail = run.catch(() => undefined);
-  return run;
+export interface PersistFields {
+  persisted: boolean;
+  /** Set when persisted is false. */
+  persistHint?: string;
+}
+
+/**
+ * Finish a mutation: with TASKER_AUTO_PERSIST, save the running configuration
+ * to disk (persist_config); otherwise report that the change is live only.
+ * Never throws: an auto-persist failure becomes a warning, since the change
+ * itself succeeded. Call it as the last step, inside the mutation lock.
+ */
+export async function finishMutation(ctx: ToolContext, warnings: string[]): Promise<PersistFields> {
+  const notPersisted: PersistFields = { persisted: false, persistHint: PERSIST_HINT };
+  if (ctx.config.autoPersist !== true) return notPersisted;
+  try {
+    if (!(await canPersist(ctx))) {
+      warnings.push(
+        "auto-persist skipped: it needs an adb device (TASKER_ADB_SERIAL or no TASKER_URL) and config imports allowed",
+      );
+      return notPersisted;
+    }
+    const r = await persistConfig(ctx);
+    warnings.push(...r.warnings);
+    return { persisted: true };
+  } catch (e) {
+    const hint = e instanceof ToolError && e.hint !== undefined ? `; ${e.hint}` : "";
+    warnings.push(`auto-persist failed: ${e instanceof Error ? e.message : String(e)}${hint}`);
+    return notPersisted;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -657,7 +686,7 @@ export function deleteTaskElement(doc: TaskerDoc, el: XmlElement): void {
 // Pipeline
 // ---------------------------------------------------------------------------
 
-export interface MutationResult {
+export interface MutationResult extends PersistFields {
   ok: boolean;
   task?: string;
   taskId?: number;
@@ -693,6 +722,12 @@ export interface ApplyTaskOptions {
   element?: XmlElement;
   /** Call ctx.toolsChanged() afterwards (default true; the scratch task skips it). */
   notify?: boolean;
+  /**
+   * Run finishMutation (auto-persist) at the end (default true). False leaves
+   * `persisted: false` with the hint; the caller persists once itself
+   * (several tasks in one import_xml) or not at all (the run_actions scratch task).
+   */
+  persist?: boolean;
 }
 
 export function formatIssue(i: Issue): string {
@@ -843,6 +878,8 @@ export function applyTask(
       changed,
       warnings,
       verified: verify.equal,
+      persisted: false,
+      persistHint: PERSIST_HINT,
     };
     if (snap.info !== undefined) result.snapshot = snap.info.id;
     if (plan.renamedFrom !== undefined) result.renamedFrom = plan.renamedFrom.name;
@@ -917,8 +954,16 @@ export function applyTask(
       if (p !== undefined) result.project = projectName(p);
     }
     if (opts.notify !== false) ctx.toolsChanged();
+    if (opts.persist !== false) setPersist(result, await finishMutation(ctx, warnings));
     return result;
   });
+}
+
+/** Copy persist fields onto a result, dropping a stale persistHint once persisted. */
+export function setPersist(target: PersistFields, p: PersistFields): void {
+  target.persisted = p.persisted;
+  if (p.persistHint === undefined) delete target.persistHint;
+  else target.persistHint = p.persistHint;
 }
 
 export interface ConfigEditResult<R> {
@@ -926,6 +971,10 @@ export interface ConfigEditResult<R> {
   doc: TaskerDoc;
   snapshot: SnapshotInfo;
   result: R;
+  /** Spread into the tool result: `{...r.persist}`. */
+  persist: PersistFields;
+  /** Warnings from finishMutation (an auto-persist that failed). */
+  warnings: string[];
 }
 
 /**
@@ -946,7 +995,9 @@ export function withConfigEdit<R>(
     const result = await fn(doc);
     await ctx.replaceConfig(doc.serialize());
     const fresh = await ctx.backup();
-    return { doc: fresh.doc, snapshot: snap.info, result };
+    const warnings: string[] = [];
+    const persist = await finishMutation(ctx, warnings);
+    return { doc: fresh.doc, snapshot: snap.info, result, persist, warnings };
   });
 }
 

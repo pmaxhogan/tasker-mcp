@@ -89,6 +89,7 @@ beforeAll(async () => {
     timeoutMs: 60_000,
     adbPath: process.env["TASKER_ADB"] ?? "adb",
     autoForward: false,
+    autoPersist: false,
     policy: { allowConfigImport: true },
   };
   ctx = createToolContext(config);

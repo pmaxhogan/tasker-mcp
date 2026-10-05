@@ -33,6 +33,7 @@ function config(over: Partial<Config> = {}): Config {
     timeoutMs: 1000,
     adbPath: "adb",
     autoForward: false,
+    autoPersist: false,
     policy: { allowConfigImport: true },
     ...over,
   };

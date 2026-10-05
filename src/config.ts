@@ -13,6 +13,8 @@ export interface Config {
   autoForward: boolean;
   /** Write scope for mutating tools (TASKER_WRITE_ALLOW, TASKER_ALLOW_CONFIG_IMPORT). */
   policy: WritePolicy;
+  /** Run persist_config after every mutating tool (TASKER_AUTO_PERSIST, --auto-persist). */
+  autoPersist: boolean;
 }
 
 export type ConfigAction = "run" | "help" | "version";
@@ -47,6 +49,11 @@ Options:
                         TASKER_ALLOW_CONFIG_IMPORT=true|false. Default: allowed,
                         unless --write-allow is set.
   --no-config-import    Forbid whole-configuration imports.
+  --auto-persist        After every change, save Tasker's running configuration
+                        to disk (persist_config; drives Tasker's editor over
+                        adb). Env TASKER_AUTO_PERSIST=true|false. Default: off;
+                        changes are then live only until persist_config runs.
+  --no-auto-persist     Turn auto-persist off.
   --help                Show this help
   --version             Show the version
 
@@ -67,6 +74,8 @@ const VALUE_FLAGS = new Set([
 const SWITCH_FLAGS: Record<string, [string, string]> = {
   "allow-config-import": ["config-import", "true"],
   "no-config-import": ["config-import", "false"],
+  "auto-persist": ["auto-persist", "true"],
+  "no-auto-persist": ["auto-persist", "false"],
 };
 
 export class ConfigError extends Error {
@@ -183,6 +192,14 @@ export function loadPolicy(flags: Map<string, string>, env: NodeJS.ProcessEnv): 
     : { allowPrefixes: prefixes, allowConfigImport };
 }
 
+/** --auto-persist / --no-auto-persist, else TASKER_AUTO_PERSIST, else false. */
+export function loadAutoPersist(flags: Map<string, string>, env: NodeJS.ProcessEnv): boolean {
+  const flag = flags.get("auto-persist");
+  if (flag !== undefined) return flag === "true";
+  const raw = nonEmpty(env["TASKER_AUTO_PERSIST"]);
+  return raw === undefined ? false : parseBool(raw, "TASKER_AUTO_PERSIST");
+}
+
 export function loadConfig(
   argv: string[],
   env: NodeJS.ProcessEnv,
@@ -206,6 +223,7 @@ export function loadConfig(
         adbPath: "adb",
         autoForward: true,
         policy: { ...DEFAULT_POLICY },
+        autoPersist: false,
       },
     };
   }
@@ -255,6 +273,7 @@ export function loadConfig(
       adbPath: pick("adb", "TASKER_ADB") ?? "adb",
       autoForward: url === undefined,
       policy: loadPolicy(flags, env),
+      autoPersist: loadAutoPersist(flags, env),
     },
   };
 }

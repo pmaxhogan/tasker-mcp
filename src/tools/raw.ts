@@ -22,6 +22,7 @@ import { handler, ok, ToolError, type RegisterTools, type ToolContext } from "./
 import {
   applyTask,
   exclusive,
+  finishMutation,
   insertRoot,
   moveToProject,
   parseTaskerXml,
@@ -29,6 +30,7 @@ import {
   remapSceneTaskRefs,
   replaceRoot,
   sceneTaskIds,
+  setPersist,
   specLookup,
   tidy,
   validateOrThrow,
@@ -397,8 +399,10 @@ export const register: RegisterTools = (server, ctx) => {
             ...warnings,
             ...r.result.warnings,
             ...missing.map((n) => `${n} not found after import`),
+            ...r.warnings,
           ],
           verified: missing.length === 0,
+          ...r.persist,
         });
       }
       const tasks = inc.tasks();
@@ -419,11 +423,20 @@ export const register: RegisterTools = (server, ctx) => {
             await applyTask(ctx, taskToJson(t, lookup), {
               tool: "import_xml",
               element: t,
+              persist: false,
               ...(validate === undefined ? {} : { validate }),
             }),
           );
         }
-        return ok(results.length === 1 ? results[0] : { ok: results.every((r) => r.ok), results });
+        // One persist for the whole batch, reported on every result.
+        const last = results[results.length - 1] as MutationResult;
+        const persist = await finishMutation(ctx, last.warnings);
+        for (const r of results) setPersist(r, persist);
+        return ok(
+          results.length === 1
+            ? results[0]
+            : { ok: results.every((r) => r.ok), results, ...persist },
+        );
       });
     }),
   );

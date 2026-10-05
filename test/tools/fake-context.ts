@@ -523,6 +523,7 @@ export async function createFakeContext(opts: FakeContextOptions = {}): Promise<
     timeoutMs: 1000,
     adbPath: "adb",
     autoForward: false,
+    autoPersist: false,
     policy: opts.policy ?? { allowConfigImport: true },
     ...opts.config,
   };

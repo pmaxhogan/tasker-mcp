@@ -146,6 +146,7 @@ export const register: RegisterTools = (server, ctx) => {
             tool: "run_actions",
             saveSnapshot: false,
             notify: false,
+            persist: false,
           });
           const runOpts: Parameters<typeof runOnPhone>[1] = { task: SCRATCH_TASK };
           if (args.timeoutSec !== undefined) runOpts.timeoutSec = args.timeoutSec;
@@ -166,6 +167,7 @@ export const register: RegisterTools = (server, ctx) => {
                   saveSnapshot: false,
                   validate: false,
                   notify: false,
+                  persist: false,
                 });
               } catch {
                 // Leaving the scratch task populated is harmless; the run result matters more.

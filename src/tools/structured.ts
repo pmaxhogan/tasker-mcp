@@ -33,6 +33,7 @@ import {
   coerceArg,
   deleteTaskElement,
   exclusive,
+  finishMutation,
   insertRoot,
   moveToProject,
   profilesUsingTask,
@@ -550,8 +551,9 @@ export const register: RegisterTools = (server, ctx) => {
         deleted: name,
         snapshot: r.snapshot.id,
         changed: [`deleted task ${JSON.stringify(name)}`],
-        warnings,
+        warnings: [...warnings, ...r.warnings],
         verified: r.doc.taskByName(name) === undefined,
+        ...r.persist,
       });
     }),
   );
@@ -627,8 +629,9 @@ export const register: RegisterTools = (server, ctx) => {
           project: r.result.project,
           snapshot: r.snapshot.id,
           changed: [`created profile ${JSON.stringify(args.name)}`],
-          warnings: [],
+          warnings: r.warnings,
           verified: made !== undefined,
+          ...r.persist,
         });
       },
     ),
@@ -677,6 +680,8 @@ export const register: RegisterTools = (server, ctx) => {
             await (await ctx.client()).setProfileEnabled(args.name, s.enabled as boolean);
             const after = (await ctx.backup()).doc.profileByName(args.name);
             const enabled = after !== undefined && childText(after, "limit") !== "true";
+            const warnings: string[] = [];
+            const persist = await finishMutation(ctx, warnings);
             return ok({
               ok: true,
               profile: args.name,
@@ -684,8 +689,9 @@ export const register: RegisterTools = (server, ctx) => {
               changed: [
                 `${s.enabled ? "enabled" : "disabled"} profile ${JSON.stringify(args.name)}`,
               ],
-              warnings: [],
+              warnings,
               verified: enabled === s.enabled,
+              ...persist,
             });
           });
         }
@@ -731,8 +737,9 @@ export const register: RegisterTools = (server, ctx) => {
           profile: finalName,
           snapshot: r.snapshot.id,
           changed: r.result,
-          warnings: [],
+          warnings: r.warnings,
           verified: r.doc.profileByName(finalName) !== undefined,
+          ...r.persist,
         });
       },
     ),
@@ -761,8 +768,9 @@ export const register: RegisterTools = (server, ctx) => {
         deleted: name,
         snapshot: r.snapshot.id,
         changed: [`deleted profile ${JSON.stringify(name)}`],
-        warnings: [],
+        warnings: r.warnings,
         verified: gone,
+        ...r.persist,
       });
     }),
   );
@@ -822,8 +830,9 @@ export const register: RegisterTools = (server, ctx) => {
           projectCreated: r.result,
           snapshot: r.snapshot.id,
           changed: [`moved ${kind} ${JSON.stringify(name)} to ${JSON.stringify(project)}`],
-          warnings: [],
+          warnings: r.warnings,
           verified: where === project,
+          ...r.persist,
         });
       },
     ),
@@ -918,8 +927,9 @@ export const register: RegisterTools = (server, ctx) => {
           renamed: { kind, from, to },
           snapshot: r.snapshot.id,
           changed: [`renamed ${kind} ${JSON.stringify(from)} to ${JSON.stringify(to)}`],
-          warnings: r.result,
+          warnings: [...r.result, ...r.warnings],
           verified: present,
+          ...r.persist,
         });
       },
     ),

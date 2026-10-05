@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { TaskerHttpError } from "../../src/client/index.ts";
+import { PERSIST_HINT } from "../../src/tools/persist.ts";
 import { register } from "../../src/tools/profiles.ts";
 import {
   connectTools,
@@ -28,7 +29,13 @@ describe("set_profile_enabled", () => {
   it("toggles a profile", async () => {
     await setup();
     const r = await t.call("set_profile_enabled", { name: "TaskerMCP HTTP", enabled: false });
-    expect(r.json).toEqual({ ok: true, name: "TaskerMCP HTTP", enabled: false });
+    expect(r.json).toEqual({
+      ok: true,
+      name: "TaskerMCP HTTP",
+      enabled: false,
+      persisted: false,
+      persistHint: PERSIST_HINT,
+    });
     expect(fc.phone.calls.at(-1)).toEqual({
       route: "/profile",
       body: { name: "TaskerMCP HTTP", enabled: false },

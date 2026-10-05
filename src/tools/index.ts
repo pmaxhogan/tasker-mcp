@@ -13,6 +13,7 @@ import { register as tasktools } from "./tasktools.ts";
 import { register as structured } from "./structured.ts";
 import { register as raw } from "./raw.ts";
 import { register as run } from "./run.ts";
+import { register as persist } from "./persist.ts";
 
 export const TOOL_MODULES: Array<{ name: string; register: RegisterTools }> = [
   { name: "variables", register: variables },
@@ -25,4 +26,5 @@ export const TOOL_MODULES: Array<{ name: string; register: RegisterTools }> = [
   { name: "structured", register: structured },
   { name: "raw", register: raw },
   { name: "run", register: run },
+  { name: "persist", register: persist },
 ];

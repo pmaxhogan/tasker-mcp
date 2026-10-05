@@ -88,6 +88,42 @@ Verified on Tasker 6.6.20 (trial build) on an Android 17 emulator.
   answers 501 and `get_run_log` explains that; `get_logcat` covers the use
   case when Tasker's "Debug To System Log" preference is on.
 
+- **Active and Passive configuration; only an editor save reaches disk.**
+  Tasker holds two copies of its configuration. "Active" is the running
+  service's copy; Import Data (a task or a whole configuration, so every
+  `/import` and `/config`) changes only Active. "Passive" is the editor's copy,
+  loaded from disk when the editor opens, and the only thing ever saved: on
+  leaving the editor, `saveData` writes Passive only when the editor is dirty
+  (logcat: `T: EXIT: from back: save: true dirty: false ...`). So every change
+  made over this API is lost when Tasker restarts (force-stop, reboot), and if
+  the user opens the editor and saves, the stale Passive overwrites them. An
+  editor that is open during an import does not pick the import up.
+  Exceptions that Tasker saves itself: global variables, and a profile's
+  enabled flag set with Profile Status (`/profile`); that save writes only the
+  flag, not other unsaved changes.
+- **Persisting (`persist_config`).** `GET /backup` runs Data Backup, which
+  writes Active to `/sdcard/Tasker/configs/user/tasker-mcp-live.xml`. The
+  desktop server then drives the editor over adb:
+  1. `am start -n net.dinglisch.android.taskerm/.Tasker -f 0x10008000`
+     (CLEAR_TASK, so no stale editor instance is reused), dismissing nag
+     dialogs.
+  2. Menu (More options), Data, Restore, User Local Backup, then the entry
+     `tasker-mcp-live` (the picker lists `Tasker/configs/user/`), then OK on
+     "This will overwrite existing data. Continue ?". The editor now shows the
+     live data and is dirty (Apply appears).
+  3. Back: logcat shows `EXIT: ... dirty: true` and `saveData: ok: true`.
+     Then Home.
+  4. The restore may restart the monitor, so the server waits for `/ping` and
+     re-reads `/backup` to check that nothing changed.
+
+  Verified: a task made with `create_task` survives `am force-stop` and a
+  relaunch only after this, and is lost without it
+  (`test/device/persist.test.ts`). The round trip takes about 23 seconds on
+  the emulator, most of it `uiautomator dump` (about 2 seconds per screen).
+  The server never unlocks a phone: with the keyguard showing or the screen
+  off it fails with the manual steps instead. The GUI steps match English
+  labels.
+
 ## Security notes
 
 - **Loopback only by default.** Tasker's HTTP server listens on every

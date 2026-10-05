@@ -16,6 +16,7 @@ describe("loadConfig", () => {
       timeoutMs: 30000,
       adbPath: "adb",
       autoForward: true,
+      autoPersist: false,
     });
     expect(config.home.replaceAll("\\", "/")).toBe("/home/u/.tasker-mcp");
   });
@@ -42,6 +43,7 @@ describe("loadConfig", () => {
       timeoutMs: 5000,
       adbPath: "/opt/adb",
       autoForward: false,
+      autoPersist: false,
       policy: { allowConfigImport: true },
     });
   });
@@ -162,5 +164,19 @@ describe("write policy", () => {
       /TASKER_ALLOW_CONFIG_IMPORT/,
     );
     expect(() => load(["--allow-config-import=1"])).toThrow(/Unknown option/);
+  });
+});
+
+describe("auto-persist", () => {
+  it("defaults to off and reads the env var and both switches", () => {
+    expect(load([]).config.autoPersist).toBe(false);
+    expect(load([], { TASKER_AUTO_PERSIST: "true" }).config.autoPersist).toBe(true);
+    expect(load([], { TASKER_AUTO_PERSIST: "off" }).config.autoPersist).toBe(false);
+    expect(load(["--auto-persist"]).config.autoPersist).toBe(true);
+    expect(load(["--no-auto-persist"], { TASKER_AUTO_PERSIST: "1" }).config.autoPersist).toBe(
+      false,
+    );
+    expect(() => load([], { TASKER_AUTO_PERSIST: "maybe" })).toThrow(/TASKER_AUTO_PERSIST/);
+    expect(HELP_TEXT).toContain("--auto-persist");
   });
 });
