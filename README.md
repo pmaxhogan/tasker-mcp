@@ -214,6 +214,29 @@ Calling it runs the task, so it mutates whatever the task does.
 `refresh_tools` re-reads the configuration and tells the client when the set
 changed. `ping` checks the connection.
 
+To make a task a tool:
+
+1. Put `#mcp` and a one-line description in the task's comment.
+2. Add Task Variables for the arguments (Immutable on, Configure on Import
+   off); the Prompt becomes the argument description, and "(required)" in the
+   Prompt makes it required. Type Number becomes a number argument, On/Off a
+   boolean.
+3. Make the first action a JavaScriptlet labelled `MCP#parse_args`, with the
+   condition `%par1 Is Set` and this code:
+
+   ```js
+   const args = JSON.parse(local("par1"));
+   for (const name in args) {
+     setLocal(name, args[name]);
+   }
+   exit();
+   ```
+
+   Tasker does not let Perform Task overwrite Immutable Task Variables, so the
+   arguments arrive as JSON in `%par1` and this action copies them into the
+   task's variables (the dceluis/tasker-mcp convention; tasks built for that
+   project work unchanged).
+
 ## Safety net
 
 - **Snapshot before every mutation.** Each write first fetches a full backup and
