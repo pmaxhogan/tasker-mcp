@@ -102,7 +102,33 @@ function authorized(token) {
 
 var GLOBAL_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 
+// Tasker's HTTP server listens on every interface and has no bind-address
+// setting, so loopback-only is enforced here: a caller that is not localhost
+// (adb forward arrives as 127.0.0.1) is refused before the token is checked,
+// unless the owner sets %TaskerMCP_AllowRemote to 1.
+var LOOPBACK = /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1|localhost)$/i;
+
+function remoteAddress() {
+  var ip = readLocal(function () {
+    return http_request_ip_address_v4;
+  });
+  if (!ip)
+    ip = readLocal(function () {
+      return local("http_request_ip_address_v4");
+    });
+  return ip;
+}
+
 function main() {
+  var ip = remoteAddress();
+  var allowRemote = String(global("TaskerMCP_AllowRemote") || "") === "1";
+  if (!allowRemote &amp;&amp; !LOOPBACK.test(ip))
+    return reply(403, {
+      error:
+        "remote access is disabled (caller " +
+        (ip || "unknown") +
+        "): use adb forward, or set %TaskerMCP_AllowRemote to 1 on the phone",
+    });
   var token = readLocal(function () {
     return global("TaskerMCP_Token");
   });

@@ -36,7 +36,11 @@ To rotate the token later, run `TaskerMCP.Setup` again or call
 
 ## Routes
 
-Every request needs `Authorization: Bearer <token>`; anything else gets 401
+Requests must come from localhost: `adb forward` (or a client on the phone
+itself). Any other caller gets 403 before the token is even checked, unless
+the global `%TaskerMCP_AllowRemote` is set to `1` on the phone (see Security
+notes). Every request also needs `Authorization: Bearer <token>`; anything
+else gets 401
 `{"error": "unauthorized"}`. Errors are JSON `{"error": "..."}` with a non-200
 status. Responses are sent as `text/plain` (Tasker's HTTP Response ignores the
 mime field in this layout); the body is JSON except for `/backup`.
@@ -85,6 +89,16 @@ Verified on Tasker 6.6.20 (trial build) on an Android 17 emulator.
   case when Tasker's "Debug To System Log" preference is on.
 
 ## Security notes
+
+- **Loopback only by default.** Tasker's HTTP server listens on every
+  interface (verified: the socket is bound to `::`) and the HTTP Request event
+  has no bind-address setting, so the dispatcher enforces it instead: it reads
+  `%http_request_ip_address_v4` and answers 403 to anything that is not
+  `127.0.0.1`/`::1`. `adb forward` connections arrive as `127.0.0.1`, so the
+  usual USB or wireless-adb setup is unaffected. To reach the phone over
+  Wi-Fi or Tailscale instead, set `%TaskerMCP_AllowRemote` to `1` in Tasker's
+  VARS tab (and consider limiting the `TaskerMCP HTTP` profile with a Wi-Fi
+  state context so the port is closed on other networks).
 
 - The token is the only thing between the network and full control of
   Tasker. Keep port 1821 off untrusted networks; with adb, `adb forward` keeps
