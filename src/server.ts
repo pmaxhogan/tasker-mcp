@@ -1,9 +1,22 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolContext } from "./tools/context.ts";
+import { TOOL_MODULES } from "./tools/index.ts";
 import { VERSION } from "./version.ts";
 
-/** Builds the MCP server with every tool registered. */
-export function createServer(): McpServer {
-  const server = new McpServer({ name: "tasker-mcp", version: VERSION });
+export const SERVER_INSTRUCTIONS = `tasker-mcp drives Tasker on an Android phone or emulator.
+Start with list_tasks / list_profiles / list_projects, read with get_task, change with create_task / edit_task (every mutation snapshots the configuration first; restore_snapshot undoes it), and run with run_task or run_actions.
+Look up action codes and argument layouts with search_actions and get_action_spec before writing actions; unknown codes are allowed as raw XML.
+Docs: search_docs / get_doc search the Tasker userguide.`;
+
+/**
+ * Builds the MCP server. Without a context only `ping` is registered (used by
+ * tests and by `--help`-style smoke checks); with one, every tool module is.
+ */
+export function createServer(ctx?: ToolContext): McpServer {
+  const server = new McpServer(
+    { name: "tasker-mcp", version: VERSION },
+    { capabilities: { tools: { listChanged: true } }, instructions: SERVER_INSTRUCTIONS },
+  );
   server.registerTool(
     "ping",
     {
@@ -15,5 +28,8 @@ export function createServer(): McpServer {
       content: [{ type: "text", text: JSON.stringify({ ok: true, server: VERSION }) }],
     }),
   );
+  if (ctx) {
+    for (const mod of TOOL_MODULES) mod.register(server, ctx);
+  }
   return server;
 }
