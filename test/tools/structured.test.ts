@@ -3,7 +3,7 @@ import { TaskerDoc } from "../../src/model/document.ts";
 import { register as registerStructured } from "../../src/tools/structured.ts";
 import { register as registerRaw } from "../../src/tools/raw.ts";
 import { register as registerRun } from "../../src/tools/run.ts";
-import { childText } from "../../src/xml/index.ts";
+import { child, childText, children } from "../../src/xml/index.ts";
 import {
   connectTools,
   createFakeContext,
@@ -288,6 +288,75 @@ describe("create_task", () => {
     });
     expect(r.isError, r.text).toBe(false);
     expect(r.json.verified).toBe(true);
+  });
+
+  // Found by the GUI conformance wave (docs/conformance.md).
+  it("accepts high-precedence joins and Else If, as get_task reports them", async () => {
+    const { fc, t } = await setup();
+    const cond = (joins: string[]) => ({
+      conditions: [
+        { lhs: "%aaa", op: "Set" },
+        { lhs: "%bbb", op: "~R", rhs: "^b" },
+        { lhs: "%ccc", op: "=", rhs: "1" },
+      ],
+      joins,
+    });
+    const r = await t.call("create_task", {
+      name: "Joins",
+      actions: [
+        { action: "If", condition: cond(["xor2", "And2"]) },
+        { action: "Else If", condition: cond(["&+", "Or (High Precedence)"]) },
+        { action: "Else" },
+        { action: "End If" },
+      ],
+    });
+    expect(r.isError, r.text).toBe(false);
+    expect(r.json.verified).toBe(true);
+    const acts = children(fc.phone.doc.taskByName("Joins")!, "Action");
+    const bools = (i: number) =>
+      [0, 1].map((b) => childText(child(acts[i]!, "ConditionList")!, `bool${b}`));
+    expect(bools(0)).toEqual(["Xor2", "And2"]);
+    expect(bools(1)).toEqual(["And2", "Or2"]);
+    const got = (await t.call("get_task", { name: "Joins" })).json;
+    expect(got.actions.map((a: { name: string }) => a.name)).toEqual([
+      "If",
+      "Else If",
+      "Else",
+      "End If",
+    ]);
+    expect(got.actions[0].condition.joins).toEqual(["xor2", "and2"]);
+    // The get_task output goes straight back in.
+    const again = await t.call("edit_task", { name: "Joins", patch: { actions: got.actions } });
+    expect(again.isError, again.text).toBe(false);
+    expect(again.json.verified).toBe(true);
+
+    const bad = await t.call("create_task", {
+      name: "Bad",
+      actions: [{ action: "If" }, { action: "Else If" }, { action: "End If" }],
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain('"Else If" is an Else (43) with a condition');
+  });
+
+  it("fills the defaults the Tasker editor uses", async () => {
+    const { t } = await setup();
+    const r = await t.call("create_task", {
+      name: "Defaults",
+      actions: [
+        { action: "Variable Set", args: { Name: "%aaa", To: "1" } },
+        { action: "Perform Task", args: { Name: "MCP.T1" } },
+        { action: "Show Scene", args: { Name: "Scene1" } },
+      ],
+    });
+    expect(r.isError, r.text).toBe(false);
+    const got = (await t.call("get_task", { name: "Defaults" })).json;
+    const arg = (i: number, id: number) =>
+      got.actions[i].args.find((a: { id: number }) => a.id === id);
+    expect(arg(0, 6)).toMatchObject({ name: "Structure Output (JSON, etc)", value: 1 });
+    expect(arg(1, 1)).toMatchObject({ name: "Priority", kind: "Int", value: "%priority" });
+    expect(arg(1, 10)).toMatchObject({ value: 1 });
+    expect(arg(2, 9)).toMatchObject({ name: "Blocking Overlay +", value: 1 });
+    expect(arg(2, 10)).toMatchObject({ name: "Overlay +", value: 1 });
   });
 
   it("moves a new task to its project with one config import", async () => {

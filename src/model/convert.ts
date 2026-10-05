@@ -18,7 +18,7 @@
  * edits onto the parsed raw element and keeps every other child as-is.
  */
 
-import { computeDepths, PLUGIN_CODE_MIN } from "../edit/blocks.ts";
+import { computeDepths, ELSE, PLUGIN_CODE_MIN } from "../edit/blocks.ts";
 import type { ActionSpec, ArgSpec } from "../spec/types.ts";
 import {
   attr,
@@ -299,6 +299,10 @@ export function actionToJson(
     }
   }
   args.sort((a, b) => a.id - b.id);
+  // The task editor names an Else with a condition "Else If" (same code 43).
+  if (code === ELSE && action.condition !== undefined && spec !== undefined) {
+    action.name = "Else If";
+  }
   // Re-add args after the scalar fields so they read last.
   delete (action as { args?: ArgJson[] }).args;
   action.args = args;
@@ -436,6 +440,27 @@ export interface ToElementOptions {
 }
 
 /**
+ * Defaults the Tasker 6.6.20 task editor gives a new action where the spec table says
+ * otherwise, keyed "code:argId". Observed in GUI-built actions (test/fixtures/emulator,
+ * docs/conformance.md): Perform Task's Priority is the variable `%priority` (run at the
+ * caller's priority), and Show Scene ticks Blocking Overlay + and Overlay +. Used by
+ * actionToElement and mutate.fillDefaults when an arg is left out.
+ */
+const GUI_DEFAULTS: ReadonlyMap<string, number | string | boolean> = new Map<
+  string,
+  number | string | boolean
+>([
+  ["130:1", "%priority"],
+  ["47:9", true],
+  ["47:10", true],
+]);
+
+/** The task editor's default for an arg, when it differs from the spec table's. */
+export function guiDefault(code: number, argId: number): number | string | boolean | undefined {
+  return GUI_DEFAULTS.get(`${code}:${argId}`);
+}
+
+/**
  * Default value of an Int arg from its MapTasker spec string "min:max:default"
  * (e.g. Variable Set's Max Rounding Digits "0:10:3" -> 3), else 0 clamped to min.
  */
@@ -446,9 +471,13 @@ export function intDefault(spec: ArgSpec): number {
   return 0;
 }
 
-/** Default of a Boolean arg: MapTasker writes "true"/"false" in the spec string; else false. */
+/**
+ * Default of a Boolean arg: MapTasker writes "true"/"false" in the spec string; else false.
+ * "bosta" marks the "Structure Output (JSON, etc)" checkbox, which the Tasker 6.6.20 editor
+ * turns on for a new action (GUI exports in test/fixtures/emulator; docs/conformance.md).
+ */
 export function boolDefault(spec: ArgSpec): boolean {
-  return spec.spec === "true";
+  return spec.spec === "true" || spec.spec === "bosta";
 }
 
 /**
@@ -580,7 +609,15 @@ export function actionToElement(
   if (opts.fillDefaults !== false && spec !== undefined) {
     for (const s of spec.args) {
       if (seen.has(s.id)) continue;
-      const d = defaultArgElement(s);
+      const gui = guiDefault(action.code, s.id);
+      const d =
+        gui === undefined
+          ? defaultArgElement(s)
+          : argToElement(
+              typeof gui === "boolean"
+                ? { id: s.id, kind: "Bool", value: gui }
+                : { id: s.id, kind: "Int", value: gui },
+            );
       if (d === undefined) {
         opts.warnings?.push(
           `action ${index} (${spec.name}): arg${s.id} "${s.name}" omitted; no default for its type, Tasker fills it on import`,

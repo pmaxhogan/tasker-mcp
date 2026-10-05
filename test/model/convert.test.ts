@@ -294,7 +294,8 @@ describe("actionToElement", () => {
         '\t\t\t<Int sr="arg3" val="0"/>',
         '\t\t\t<Int sr="arg4" val="0"/>',
         '\t\t\t<Int sr="arg5" val="3"/>',
-        '\t\t\t<Int sr="arg6" val="0"/>',
+        // Structure Output ("bosta") is on by default, as in a GUI-built Variable Set.
+        '\t\t\t<Int sr="arg6" val="1"/>',
         "\t\t</Action>",
       ].join("\n"),
     );
@@ -647,5 +648,20 @@ describe("actionToElement on raw actions", () => {
     const badArg = { id: 0, kind: "Raw" as const, tag: "Bundle", raw: '<App sr="arg0"/>' };
     expect(() => argToElement(badArg)).toThrow(/<App> element but its tag says "Bundle"/);
     expect(() => out({ ...base(), args: [badArg] })).toThrow(/tag says "Bundle"/);
+  });
+});
+
+describe("editor defaults", () => {
+  it("fills Perform Task Priority and Show Scene overlays the way the Tasker editor does", () => {
+    const pt = serializeElement(
+      actionToElement({ code: 130, args: [{ id: 0, kind: "Str", value: "X" }] }, lookup),
+    );
+    expect(pt).toContain("<var>%priority</var>");
+    expect(pt).toContain('<Int sr="arg10" val="1"/>');
+    const ss = serializeElement(
+      actionToElement({ code: 47, args: [{ id: 0, kind: "Str", value: "S" }] }, lookup),
+    );
+    expect(ss).toContain('<Int sr="arg9" val="1"/>');
+    expect(ss).toContain('<Int sr="arg10" val="1"/>');
   });
 });

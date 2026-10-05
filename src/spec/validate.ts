@@ -118,12 +118,39 @@ function checkArg(
     }
     case ArgType.String:
     case ArgType.Scene:
-      if (arg.kind !== "Str") wrong(`kind ${arg.kind}`);
+      if (arg.kind !== "Str") return wrong(`kind ${arg.kind}`);
+      checkVarName(arg.value, spec, where, out);
       return;
     default:
       // App / Icon / Bundle must arrive as Raw with the right tag.
       wrong(`kind ${arg.kind}`);
   }
+}
+
+/**
+ * A variable-name arg (spec "uvar...") holding a plain name Tasker will not accept. The task
+ * editor refuses "%xx" ("bad variable name: must start with % and be 3 or more alphanumeric
+ * characters or _, not starting/ending in _"), and an imported one is silently not a variable at
+ * run time (docs/conformance.md). Only plain `%name` values are checked; arrays, expressions
+ * and nested variables pass.
+ */
+function checkVarName(
+  value: string,
+  spec: ArgSpec,
+  where: { index: number; code: number },
+  out: ValidationResult,
+): void {
+  if (!spec.spec?.startsWith("uvar")) return;
+  const m = /^%(\w*)$/.exec(value.trim());
+  if (m === null) return;
+  const name = m[1]!;
+  if (name.length >= 3 && !name.startsWith("_") && !name.endsWith("_")) return;
+  out.warnings.push({
+    ...where,
+    message:
+      `${argLabel(spec)} "${value}" is not a valid Tasker variable name: ` +
+      "it needs 3 or more letters, digits or _ after the %, not starting or ending in _",
+  });
 }
 
 function hintFor(type: number): string | undefined {

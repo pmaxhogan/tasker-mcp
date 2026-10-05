@@ -10,7 +10,13 @@
  * likewise accepted.
  */
 
-import { intDefault, normalizeRaw, rawActionResidue, type SpecLookup } from "../model/convert.ts";
+import {
+  boolDefault,
+  intDefault,
+  normalizeRaw,
+  rawActionResidue,
+  type SpecLookup,
+} from "../model/convert.ts";
 import { TaskerDoc } from "../model/document.ts";
 import type { ActionJson, ArgJson, ConditionListJson, TaskJson } from "../model/types.ts";
 import type { ArgSpec } from "../spec/types.ts";
@@ -61,12 +67,12 @@ export function isDefaultArg(a: ArgJson, spec?: ArgSpec): boolean {
       return a.value === "";
     case "Int": {
       const v = String(a.value);
-      if (spec?.type === 3) return v === (spec.spec === "true" ? "1" : "0");
+      if (spec?.type === 3) return v === (boolDefault(spec) ? "1" : "0");
       const d = spec === undefined ? 0 : intDefault(spec);
       return v === String(d);
     }
     case "Bool":
-      return a.value === (spec?.spec === "true");
+      return a.value === (spec !== undefined && boolDefault(spec));
     case "Raw": {
       if (a.tag === "Bundle") return true;
       // Empty App / Img: self-closing with no content.

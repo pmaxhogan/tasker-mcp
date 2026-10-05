@@ -21,6 +21,7 @@ import {
   actionToJson,
   boolDefault,
   formatElement,
+  guiDefault,
   intDefault,
   OBJECT_DEPTH,
   parseIdList,
@@ -34,7 +35,7 @@ import { TaskerDoc } from "../model/document.ts";
 import { opByCode, opByName } from "../model/ops.ts";
 import type { ActionJson, ArgJson, ConditionListJson, TaskJson } from "../model/types.ts";
 import type { SnapshotInfo } from "../snapshots.ts";
-import { normName, type SpecIndex } from "../spec/table.ts";
+import { ELSE_IF_NAME, normName, type SpecIndex } from "../spec/table.ts";
 import { ArgType, type ActionSpec, type ArgSpec } from "../spec/types.ts";
 import { validateTask, type Issue } from "../spec/validate.ts";
 import {
@@ -253,6 +254,38 @@ export function coerceArg(
   }
 }
 
+/**
+ * Condition joiners as get_task reports them (the `<boolN>` text, lower case).
+ * The Tasker GUI offers And, Or, Xor and a "High Precedence" variant of each,
+ * written `And2`/`Or2`/`Xor2` and shown as `&+`, `|+`, `X|+` in the task
+ * editor (verified on Tasker 6.6.20, see docs/conformance.md).
+ */
+const JOINS: Record<string, string> = {
+  and: "and",
+  or: "or",
+  xor: "xor",
+  and2: "and2",
+  or2: "or2",
+  xor2: "xor2",
+  "&": "and",
+  "|": "or",
+  "x|": "xor",
+  "and+": "and2",
+  "or+": "or2",
+  "xor+": "xor2",
+  "&+": "and2",
+  "|+": "or2",
+  "x|+": "xor2",
+  "and (high precedence)": "and2",
+  "or (high precedence)": "or2",
+  "xor (high precedence)": "xor2",
+};
+
+/** Normalize a caller's join ("and", "Or2", "&+", "Xor (High Precedence)") or undefined. */
+export function joinByName(j: string): string | undefined {
+  return JOINS[j.trim().toLowerCase().replace(/\s+/g, " ")];
+}
+
 export function conditionFromInput(c: ConditionInput, where: string): ConditionListJson {
   const out: ConditionListJson = {
     conditions: c.conditions.map((x, i) => {
@@ -273,9 +306,11 @@ export function conditionFromInput(c: ConditionInput, where: string): ConditionL
   };
   if (c.joins !== undefined && c.joins.length > 0) {
     out.joins = c.joins.map((j) => {
-      const v = j.trim().toLowerCase();
-      if (v !== "and" && v !== "or" && v !== "xor") {
-        throw new ToolError(`${where}: condition join "${j}" must be and, or, or xor`);
+      const v = joinByName(j);
+      if (v === undefined) {
+        throw new ToolError(
+          `${where}: condition join "${j}" must be and, or, or xor (or and2, or2, xor2 for the high-precedence forms)`,
+        );
       }
       return v;
     });
@@ -332,6 +367,12 @@ export function actionFromInput(spec: SpecIndex, input: ActionInput, index: numb
     }
     actionSpec = r.spec;
     code = r.spec.code;
+    if (normName(nm) === normName(ELSE_IF_NAME) && input.condition === undefined) {
+      throw new ToolError(
+        `${where}: "${ELSE_IF_NAME}" is an Else (43) with a condition; give it a condition`,
+        `or use "Else" for a plain Else`,
+      );
+    }
   }
 
   const action: ActionJson = base ?? { code, args: [] };
@@ -393,7 +434,12 @@ export function fillDefaults(action: ActionJson, spec: ActionSpec): void {
   const have = new Set(action.args.map((a) => a.id));
   for (const s of spec.args) {
     if (have.has(s.id)) continue;
-    if (s.type === ArgType.Int)
+    const gui = guiDefault(spec.code, s.id);
+    if (typeof gui === "boolean" && s.type === ArgType.Boolean) {
+      action.args.push({ id: s.id, name: s.name, kind: "Bool", value: gui });
+    } else if (gui !== undefined && typeof gui !== "boolean" && s.type === ArgType.Int) {
+      action.args.push({ id: s.id, name: s.name, kind: "Int", value: gui });
+    } else if (s.type === ArgType.Int)
       action.args.push({ id: s.id, name: s.name, kind: "Int", value: intDefault(s) });
     else if (s.type === ArgType.Boolean) {
       action.args.push({ id: s.id, name: s.name, kind: "Bool", value: boolDefault(s) });

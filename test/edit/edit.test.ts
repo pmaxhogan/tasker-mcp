@@ -282,7 +282,8 @@ describe("diffTasks", () => {
     a0.continueOnError = false;
     a0.condition = { conditions: [{ lhs: "%a", op: 1, rhs: "1" }] };
     a0.args[1] = { id: 1, kind: "Str", value: "2" };
-    a0.args.push({ id: 6, kind: "Int", value: 1 });
+    // arg6 (Structure Output) defaults to on, so an explicit off is a difference.
+    a0.args.push({ id: 6, kind: "Int", value: 0 });
     a0.args = a0.args.filter((x) => x.id !== 0);
     changed.actions[1]!.raw = "<Action><code>6</code></Action>";
     const d = diffTasks(expected, changed, lookup);
@@ -298,7 +299,7 @@ describe("diffTasks", () => {
       "action 0: condition differs",
       'action 0: arg0 missing, expected Str "%x"',
       'action 0: arg1 expected Str "1", got Str "2"',
-      "action 0: arg6 unexpected Int 1",
+      "action 0: arg6 unexpected Int 0",
       "action 1: raw XML differs outside the structured fields",
     ]);
   });
@@ -415,6 +416,9 @@ describe("diffTasks", () => {
     const trueSpec = { id: 0, name: "b", type: 3, isMandatory: true, spec: "true" };
     expect(isDefaultArg({ id: 0, kind: "Int", value: 1 }, trueSpec)).toBe(true);
     expect(isDefaultArg({ id: 0, kind: "Bool", value: true }, trueSpec)).toBe(true);
+    // "bosta" (Structure Output) is on in a new GUI action (docs/conformance.md).
+    expect(isDefaultArg({ id: 6, kind: "Int", value: 1 }, spec(6))).toBe(true);
+    expect(isDefaultArg({ id: 6, kind: "Int", value: 0 }, spec(6))).toBe(false);
   });
 });
 
