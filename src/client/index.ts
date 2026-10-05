@@ -67,13 +67,16 @@ const XML = "text/xml";
 
 export class TaskerClient {
   private readonly baseUrl: string;
-  private readonly token: string;
+  private token: string;
+  /** Every token this client has held; all are redacted from phone responses. */
+  private readonly secrets = new Set<string>();
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: TaskerClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.token = opts.token;
+    if (opts.token !== "") this.secrets.add(opts.token);
     this.timeoutMs = opts.timeoutMs;
     this.fetchImpl = opts.fetch ?? globalThis.fetch;
   }
@@ -135,8 +138,20 @@ export class TaskerClient {
     return this.text("GET", "/runlog");
   }
 
-  rotateToken(): Promise<{ token: string }> {
-    return this.json("POST", "/token/rotate");
+  /**
+   * Asks the phone for a new token and uses it for every later call. The old
+   * token stays in the redaction set in case the phone echoes it back.
+   */
+  async rotateToken(): Promise<{ token: string }> {
+    const res = await this.json<{ token: string }>("POST", "/token/rotate");
+    if (typeof res.token === "string" && res.token !== "") this.setToken(res.token);
+    return res;
+  }
+
+  /** Use `token` for subsequent calls (e.g. after a rotation done elsewhere). */
+  setToken(token: string): void {
+    this.token = token;
+    if (token !== "") this.secrets.add(token);
   }
 
   /** Polls /ping until the phone answers (used after replaceConfig restarts its server). */
@@ -244,7 +259,11 @@ export class TaskerClient {
 
   /** Never let the token leak, even if the phone echoes it back. */
   private redact(s: string): string {
-    return this.token === "" ? s : s.split(this.token).join("[redacted]");
+    let out = s;
+    // Longest first, so a token that contains another is redacted whole.
+    const all = [...this.secrets].sort((a, b) => b.length - a.length);
+    for (const t of all) out = out.split(t).join("[redacted]");
+    return out;
   }
 }
 
