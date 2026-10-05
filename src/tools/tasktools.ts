@@ -16,9 +16,14 @@
  *   `pvn` without `%`, the description is the Prompt (`pvd`), and the type is
  *   from `pvt`: "n" -> number, "onoff" -> boolean, anything else -> string.
  *   Arguments are optional unless the prompt contains "(required)".
- * - Calling the tool runs the task (POST /run) with the arguments as task
- *   variables (lower case names, values stringified) and returns the run
- *   result: {ok, return?, durationMs, error?}.
+ * - Calling the tool runs the task (POST /run) with the arguments both as
+ *   JSON in %par1 and as passed-through local variables (lower case names,
+ *   values stringified), and returns the run result:
+ *   {ok, return?, durationMs, error?}.
+ * - Immutable Task Variables are NOT overwritten by passthrough (verified on
+ *   Tasker 6.6.20), so the task must start with dceluis's `MCP#parse_args`
+ *   JavaScriptlet, which copies the %par1 JSON into locals with setLocal.
+ *   PARSE_ARGS_JS below is that action's code.
  *
  * The phone is never contacted during register(): the first discovery runs in
  * the background shortly after startup and failures only go to stderr.
@@ -32,6 +37,17 @@ import { log } from "../log.ts";
 import { TaskerDoc } from "../model/document.ts";
 import { childText, children, type XmlElement } from "../xml/index.ts";
 import { handler, ok, type ToolContext } from "./context.ts";
+
+/**
+ * The first action of a per-task tool (a JavaScriptlet labelled
+ * MCP#parse_args, conditioned on %par1 being set): turns the JSON arguments
+ * in %par1 into local variables.
+ */
+export const PARSE_ARGS_JS = `const args = JSON.parse(local('par1'));
+for (const name in args) {
+  setLocal(name, args[name]);
+}
+exit();`;
 
 export const TOOL_PREFIX = "tasker_";
 export const MAX_TOOL_NAME = 64;
@@ -281,7 +297,16 @@ export class TaskToolRegistry {
       },
       handler(async (args: Record<string, unknown>): Promise<CallToolResult> => {
         const client = await ctx.client();
-        const result = await client.run({ task: def.task, variables: toVariables(def, args) });
+        const variables = toVariables(def, args);
+        // Immutable Task Variables cannot be overwritten by Perform Task
+        // passthrough (verified on 6.6.20), so the arguments also travel as
+        // JSON in %par1 for the task's MCP#parse_args action (dceluis
+        // convention) to set with setLocal.
+        const result = await client.run({
+          task: def.task,
+          par1: JSON.stringify(variables),
+          variables,
+        });
         return result.ok ? ok(result) : { ...ok(result), isError: true };
       }),
     );

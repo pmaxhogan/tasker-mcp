@@ -87,7 +87,11 @@ export function register(server: McpServer, ctx: ToolContext): void {
     handler(async () => {
       const client = await ctx.client();
       const res = await client.listVars();
-      const globals = [...(res.globals ?? [])].sort((a, b) => a.localeCompare(b));
+      // Tasker's Test Tasker action reports names with the leading %; tools
+      // take and return names without it.
+      const globals = [...(res.globals ?? [])]
+        .map((g) => g.replace(/^%/, ""))
+        .sort((a, b) => a.localeCompare(b));
       return ok({ count: globals.length, globals });
     }),
   );

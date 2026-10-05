@@ -215,7 +215,11 @@ describe("refresh_tools and per-task tools", () => {
     expect(run.json).toMatchObject({ ok: true, return: "7|true|%note" });
     expect(fc.phone.calls.at(-1)).toEqual({
       route: "/run",
-      body: { task: "MCP Set Volume", variables: { level: "7", loud: "true" } },
+      body: {
+        task: "MCP Set Volume",
+        par1: JSON.stringify({ level: "7", loud: "true" }),
+        variables: { level: "7", loud: "true" },
+      },
     });
     const bad = await t.call("tasker_mcp_set_volume", { loud: true });
     expect(bad.isError).toBe(true);

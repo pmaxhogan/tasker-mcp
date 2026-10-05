@@ -150,9 +150,9 @@ describe("core tools on a live Tasker", () => {
       name: LOOP,
       comment: "tasker-mcp device test",
       actions: [
-        { action: "Variable Set", args: { Name: "%n", To: "%par1" } },
-        { action: "If", condition: { conditions: [{ lhs: "%n", op: "eq", rhs: "go" }] } },
-        { action: "Return", args: { Value: "went %n" } },
+        { action: "Variable Set", args: { Name: "%loopn", To: "%par1" } },
+        { action: "If", condition: { conditions: [{ lhs: "%loopn", op: "eq", rhs: "go" }] } },
+        { action: "Return", args: { Value: "went %loopn" } },
         { action: "End If" },
         { action: "Return", args: { Value: "%par1" } },
       ],
@@ -179,7 +179,7 @@ describe("core tools on a live Tasker", () => {
         splice: {
           index: 1,
           deleteCount: 0,
-          insert: [{ action: "Variable Set", args: { Name: "%n", To: "%n!" } }],
+          insert: [{ action: "Variable Set", args: { Name: "%loopn", To: "%n!" } }],
         },
       },
     });

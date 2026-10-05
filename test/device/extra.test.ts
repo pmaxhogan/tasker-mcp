@@ -25,7 +25,7 @@ import { register as profiles } from "../../src/tools/profiles.ts";
 import { createToolContext, type RuntimeContext } from "../../src/tools/runtime.ts";
 import { register as snapshots } from "../../src/tools/snapshots.ts";
 import { register as specs } from "../../src/tools/specs.ts";
-import { registerTaskTools } from "../../src/tools/tasktools.ts";
+import { PARSE_ARGS_JS, registerTaskTools } from "../../src/tools/tasktools.ts";
 import { register as variables } from "../../src/tools/variables.ts";
 
 const URL_ = process.env.TASKER_URL ?? "http://localhost:1821";
@@ -63,6 +63,21 @@ function testTaskXml(): string {
 		<pc>Greets someone for the tasker-mcp device test. #mcp</pc>
 		<pri>100</pri>
 		<Action sr="act0" ve="7">
+			<code>129</code>
+			<label>MCP#parse_args</label>
+			<Str sr="arg0" ve="3">${PARSE_ARGS_JS}</Str>
+			<Str sr="arg1" ve="3"/>
+			<Int sr="arg2" val="0"/>
+			<Int sr="arg3" val="5"/>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%par1</lhs>
+					<op>12</op>
+					<rhs></rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act1" ve="7">
 			<code>126</code>
 			<Str sr="arg0" ve="3">hello %who</Str>
 			<Int sr="arg1" val="1"/>
