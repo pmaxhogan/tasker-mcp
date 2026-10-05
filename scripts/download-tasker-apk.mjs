@@ -78,6 +78,11 @@ async function main() {
       version = versionOf(FALLBACK);
     }
   }
+  // Values go to $GITHUB_OUTPUT as key=value lines: refuse anything that could
+  // smuggle an extra line or a non-https source.
+  if (!/^https:\/\/\S+$/.test(url) || !/^[0-9.]+$/.test(version)) {
+    throw new Error(`refusing unexpected apk url/version: ${JSON.stringify({ url, version })}`);
+  }
   console.log(`version=${version}`);
   console.log(`url=${url}`);
   if (process.env.GITHUB_OUTPUT) {

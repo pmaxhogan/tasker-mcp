@@ -13,12 +13,12 @@ and commit both. A unit test fails if the committed XML is stale.
 
 ## What is in it
 
-| Object                    | Purpose                                                                                                                                                                                                     |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Profile `TaskerMCP HTTP`  | HTTP Request event (code 2089), port 1821, method and path empty (matches every request), entry task `TaskerMCP.Dispatch`.                                                                                  |
-| Task `TaskerMCP.Dispatch` | Authenticates, routes, runs the needed Tasker actions, sends the HTTP Response. Collision handling "run both", so a long `/run` does not block other requests.                                              |
-| Task `TaskerMCP.Setup`    | Generates a 64 hex character token from two `GenerateUUID()` calls (Java `UUID.randomUUID`, SecureRandom), stores it in `%TaskerMCP_Token`, flashes it, and writes `/sdcard/Download/tasker-mcp-token.txt`. |
-| Task `TaskerMCP.Debug`    | `Perform Task` it with `%par1` = a message to append it to the debug channel that `run_task` returns with `debug: true`.                                                                                    |
+| Object                    | Purpose                                                                                                                                                                                                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Profile `TaskerMCP HTTP`  | HTTP Request event (code 2089), port 1821, method and path empty (matches every request), entry task `TaskerMCP.Dispatch`.                                                                                                                                        |
+| Task `TaskerMCP.Dispatch` | Authenticates, routes, runs the needed Tasker actions, sends the HTTP Response. Collision handling "run both", so a long `/run` does not block other requests.                                                                                                    |
+| Task `TaskerMCP.Setup`    | Generates a 64 hex character token from two `GenerateUUID()` calls (Java `UUID.randomUUID`, SecureRandom), stores it in `%TaskerMCP_Token`, and flashes it. On an emulator (device model `sdk_*`) it also writes `/sdcard/Download/tasker-mcp-token.txt` for adb. |
+| Task `TaskerMCP.Debug`    | `Perform Task` it with `%par1` = a message to append it to the debug channel that `run_task` returns with `debug: true`.                                                                                                                                          |
 
 ## Installing
 
@@ -91,6 +91,7 @@ Verified on Tasker 6.6.20 (trial build) on an Android 17 emulator.
   it on localhost.
 - With "Debug To System Log" on, Tasker writes variable values, including the
   token while Setup runs, to logcat. `get_logcat` redacts the token it knows.
-- `TaskerMCP.Setup` writes the token to shared storage so `adb` can read it on
-  an emulator. Delete `/sdcard/Download/tasker-mcp-token.txt` on a real phone
-  if other apps can read your Downloads folder.
+- `TaskerMCP.Setup` writes the token to shared storage only on an emulator
+  (device model `sdk_*`), where `adb` reads it. On a real phone the token
+  stays in the `%TaskerMCP_Token` global; read it from the Flash or the VARS
+  tab.

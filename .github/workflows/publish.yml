@@ -32,7 +32,8 @@ jobs:
           node-version: "26"
           cache: npm
           registry-url: https://registry.npmjs.org
-      - run: npm ci
+      # No install scripts in the job that holds the npm credentials.
+      - run: npm ci --ignore-scripts
       - run: npm run build
 
       - name: Decide whether npm auth is configured

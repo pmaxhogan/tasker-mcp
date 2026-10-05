@@ -9,6 +9,11 @@ updates:
       time: "06:00"
       timezone: America/New_York
     open-pull-requests-limit: 5
+    # A release must be a few days old before it is proposed: compromised
+    # versions are usually yanked within that window, and minor/patch bumps
+    # auto-merge and auto-publish.
+    cooldown:
+      default-days: 3
     groups:
       # One PR a week for everything non-breaking. Majors stay separate so they
       # get reviewed rather than auto-merged.
@@ -34,6 +39,8 @@ updates:
 
   - package-ecosystem: github-actions
     directory: "/"
+    cooldown:
+      default-days: 3
     schedule:
       interval: weekly
       day: monday

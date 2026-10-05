@@ -118,7 +118,9 @@ const A = {
       int(6, o.passthrough ? 1 : 0),
       str(7, o.passthroughList ?? ""),
       int(8, o.returnVar ? 1 : 0),
-      int(9, 0),
+      // Allow Overwrite Variables: passed values must win over the called
+      // task's own (empty) Task Variables, which per-task MCP tools rely on.
+      int(9, 1),
       int(10, 1),
     ],
   }),

@@ -70,10 +70,12 @@ jobs:
 
       - name: Detect changes
         id: diff
+        env:
+          VERSION: ${{ steps.apk.outputs.version }}
         run: |
           if git diff --quiet -- data/ && [ -z "$(git ls-files --others --exclude-standard -- data/)" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "data/ is up to date with Tasker ${{ steps.apk.outputs.version }}"
+            echo "data/ is up to date with Tasker $VERSION"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
