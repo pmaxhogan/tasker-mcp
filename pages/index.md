@@ -1,0 +1,67 @@
+# Userguide
+
+Source: https://tasker.joaoapps.com/userguide/en/index.html
+
+## Tasker Userguide
+
+- Profiles
+  - [Main Screen](activity_main)
+  - Contexts
+    - [Application](appcontext)
+    - [Time](timecontext)
+    - [Day](daycontext)
+    - [Location](loccontext)
+      - [Location Edit](activity_locselect)
+    - [State](activity_stateedit)
+      - [A-Z](help__auto_index#sh)
+    - [Event](eventcontext)
+      - [Event Edit](activity_eventedit)
+      - [A-Z](help__auto_index#eh)
+- Tasks
+  - [General](tasks)
+  - [Task Edit](activity_taskedit)
+  - [Flow Control](flowcontrol)
+  - [Task Widgets / Shortcuts](app_widgets)
+    - [Configuration](activity_widget_configure)
+  - Actions
+    - [Action Edit](activity_actionedit)
+    - [Settings](settings)
+    - [A-Z](help__auto_index#ah)
+- Scenes
+  - [General](scenes)
+  - [Scene Edit](activity_sceneedit)
+  - [Scene Properties](activity_scenepropertiesedit)
+  - Scene Elements
+    - [Button](element_button) [CheckBox](element_checkbox) [Doodle](element_doodle) [EditText](element_textedit) [Image](element_image) [Map](element_map) [Menu](element_menu) [Number Picker](element_picker) [Oval](element_shape) [Rectangle](element_shape) [Slider](element_slider) [Spinner](element_spinner) [Text](element_text) [Toggle](element_toggle) [Video](element_video) [Web](element_web)
+    - [Element Edit](activity_elementedit)
+- Variables
+  - [General](variables)
+- Miscellaneous
+  - [Android System Power Management](androidpowermanagement)
+  - [App Creation](appcreation)
+  - [CPU Control](cpu)
+  - [Encryption](encryption)
+  - [Gestures](gestures)
+  - [Icons](icons)
+  - [Intents](intents)
+  - [Java](java)
+  - [JavaScript](javascript)
+  - [Location Without Tears](loctears)
+  - [Maths](maths)
+  - [MIDI](midi)
+  - [Pattern Matching](matching)
+  - [Power Usage](power)
+  - [Run Log](activity_runlog)
+- FAQs
+  - [How Do I... / Can I... ?](faqs__faq-how)
+  - [Usage Problems](faqs__faq-problem)
+  - [Why... ?](faqs__faq-why)
+  - [App Creation](faqs__faq-appcreation)
+  - [Other](faqs__faq-other)
+- Web Links
+  - [Wiki (Step-throughs, Recipes)](http://tasker.wikidot.com/)
+  - [Tour](http://tasker.dinglisch.net/tour.html)
+  - [Bugs / Limitations](http://tasker.dinglisch.net/bugs.html)
+  - [Plans](http://tasker.dinglisch.net/todo.html)
+  - [Developers](http://tasker.dinglisch.net/developers.html)
+  - [Release Notes](http://tasker.dinglisch.net/changes.html)
