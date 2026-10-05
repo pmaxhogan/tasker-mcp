@@ -54,7 +54,10 @@ function intChild(el: XmlElement, name: string): number | undefined {
 }
 
 export class TaskerDoc {
-  constructor(readonly doc: XmlDocument) {
+  readonly doc: XmlDocument;
+
+  constructor(doc: XmlDocument) {
+    this.doc = doc;
     if (doc.root.name !== "TaskerData") {
       throw new Error(`not a Tasker file: root element is <${doc.root.name}>, not <TaskerData>`);
     }

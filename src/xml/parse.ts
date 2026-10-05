@@ -108,8 +108,12 @@ interface OpenFrame {
 
 class Parser {
   private pos = 0;
+  private readonly src: string;
 
-  constructor(private readonly src: string) {}
+  // No parameter properties: Node type stripping (used by scripts/) rejects them.
+  constructor(src: string) {
+    this.src = src;
+  }
 
   private fail(msg: string, at: number = this.pos): never {
     throw new XmlParseError(msg, this.src, at);

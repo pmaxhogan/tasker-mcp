@@ -43,6 +43,33 @@ export default tseslint.config(
     rules: { "no-console": "error" },
   },
   {
+    // JavaScriptlets that run inside Tasker: plain scripts whose top-level
+    // vars are outputs copied back into the task, with Tasker's builtins and
+    // the HTTP Request event's locals as globals.
+    files: ["tasker/js/**/*.js"],
+    languageOptions: {
+      sourceType: "script",
+      globals: {
+        enableProfile: "readonly",
+        global: "readonly",
+        local: "readonly",
+        readFile: "readonly",
+        setGlobal: "readonly",
+        setLocal: "readonly",
+        writeFile: "readonly",
+        http_request_body: "readonly",
+        http_request_headers: "readonly",
+        http_request_method: "readonly",
+        http_request_path: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-unused-vars": "off",
+      "no-unused-vars": "off",
+      "no-useless-assignment": "off",
+    },
+  },
+  {
     files: ["scripts/**/*.mjs", "bin/**/*.js"],
     rules: { "no-console": "off" },
   },

@@ -1,0 +1,921 @@
+<TaskerData sr="" dvi="1" tv="6.6.20">
+	<Profile sr="prof9010" ve="2">
+		<cdate>1791158400000</cdate>
+		<edate>1791158400000</edate>
+		<flags>8</flags>
+		<id>9010</id>
+		<mid0>9001</mid0>
+		<nme>TaskerMCP HTTP</nme>
+		<pri>50</pri>
+		<Event sr="con0" ve="2">
+			<code>2089</code>
+			<pri>0</pri>
+			<Bundle sr="arg0">
+				<Vals sr="val">
+					<net.dinglisch.android.tasker.RELEVANT_VARIABLES>&lt;StringArray sr=""/&gt;</net.dinglisch.android.tasker.RELEVANT_VARIABLES>
+					<net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>
+				</Vals>
+			</Bundle>
+			<Int sr="arg1" val="1821"/>
+			<Str sr="arg2" ve="3"/>
+			<Str sr="arg3" ve="3"/>
+			<Str sr="arg4" ve="3"/>
+			<Int sr="arg5" val="60"/>
+			<Int sr="arg6" val="0"/>
+			<Str sr="arg7" ve="3"/>
+		</Event>
+	</Profile>
+	<Project sr="proj0" ve="2">
+		<cdate>1791158400000</cdate>
+		<name>TaskerMCP</name>
+		<pids>9010</pids>
+		<tids>9001,9002,9003</tids>
+	</Project>
+	<Task sr="task9001">
+		<cdate>1791158400000</cdate>
+		<edate>1791158400000</edate>
+		<id>9001</id>
+		<nme>TaskerMCP.Dispatch</nme>
+		<pc>Handles every tasker-mcp HTTP request: auth, routing, response.</pc>
+		<pri>100</pri>
+		<rty>2</rty>
+		<Action sr="act0" ve="7">
+			<code>129</code>
+			<Str sr="arg0" ve="3">// TaskerMCP.Dispatch, step 1 (JavaScriptlet).
+//
+// Authenticates the request, parses the JSON body, and either answers it
+// directly (sets status/body/ctype and route = "respond") or sets `route` plus
+// arg_* locals for the Tasker actions that follow in the task. Lower-case
+// variables declared here with `var` flow back into the task as %name.
+//
+// Tasker exposes the HTTP Request event's locals as plain JS variables:
+// http_request_method, http_request_path, http_request_body, and the array
+// http_request_headers ("name:value" strings).
+
+var status = "500";
+var ctype = "application/json";
+var body = "";
+var route = "respond";
+var arg_task = "";
+var arg_par1 = "";
+var arg_par2 = "";
+var arg_name = "";
+var arg_value = "";
+var arg_passthrough = "";
+var arg_debug = "0";
+var arg_t0 = String(Date.now());
+
+function reply(code, obj) {
+  status = String(code);
+  body = JSON.stringify(obj);
+  route = "respond";
+}
+
+function readLocal(fn) {
+  try {
+    var v = fn();
+    if (v === undefined || v === null) return "";
+    v = String(v);
+    // An unset Tasker variable can surface as its own literal name.
+    return /^%[a-z_]+$/.test(v) ? "" : v;
+  } catch (_e) {
+    return "";
+  }
+}
+
+function headerList() {
+  try {
+    return http_request_headers || [];
+  } catch (_e) {
+    return [];
+  }
+}
+
+function authorized(token) {
+  var hs = headerList();
+  for (var i = 0; i &lt; hs.length; i++) {
+    var m = /^\s*authorization\s*:\s*bearer\s+(\S+)\s*$/i.exec(String(hs[i]));
+    if (m &amp;&amp; m[1] === token) return true;
+  }
+  return false;
+}
+
+var GLOBAL_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+function main() {
+  var token = readLocal(function () {
+    return global("TaskerMCP_Token");
+  });
+  if (!token)
+    return reply(503, { error: "TaskerMCP_Token is not set: run the TaskerMCP.Setup task" });
+  if (!authorized(token)) return reply(401, { error: "unauthorized" });
+
+  var method = readLocal(function () {
+    return http_request_method;
+  }).toUpperCase();
+  var path =
+    readLocal(function () {
+      return http_request_path;
+    }).replace(/\/+$/, "") || "/";
+  var raw = readLocal(function () {
+    return http_request_body;
+  });
+  var req = {};
+  var isXml = path === "/import" || path === "/config";
+  if (raw &amp;&amp; !isXml) {
+    try {
+      req = JSON.parse(raw);
+    } catch (e) {
+      return reply(400, { error: "body is not valid JSON: " + e.message });
+    }
+    if (req === null || typeof req !== "object") req = {};
+  }
+
+  var key = method + " " + path;
+  switch (key) {
+    case "GET /ping":
+      return reply(200, {
+        ok: true,
+        project: global("TaskerMCP_Version") || "",
+        tasker: global("TaskerMCP_TaskerVersion") || "",
+        device: global("DEVMOD") || "",
+      });
+    case "GET /backup":
+      route = "backup";
+      return;
+    case "GET /list":
+      route = "list";
+      return;
+    case "POST /import":
+      if (!raw) return reply(400, { error: "empty body: POST the TaskerData XML of one task" });
+      route = "import";
+      return;
+    case "POST /config":
+      if (!raw || raw.indexOf("&lt;TaskerData") &lt; 0)
+        return reply(400, { error: "body must be a full TaskerData XML configuration" });
+      route = "config";
+      return;
+    case "POST /run":
+      if (!req.task) return reply(400, { error: "missing 'task'" });
+      arg_task = String(req.task);
+      arg_par1 = req.par1 === undefined ? "" : String(req.par1);
+      arg_par2 = req.par2 === undefined ? "" : String(req.par2);
+      arg_debug = req.debug ? "1" : "0";
+      if (req.variables &amp;&amp; typeof req.variables === "object") {
+        var names = [];
+        for (var k in req.variables) {
+          if (!/^[a-z][a-z0-9_]*$/.test(k))
+            return reply(400, { error: "variable names must be lower case locals: " + k });
+          setLocal(k, String(req.variables[k]));
+          names.push(k);
+        }
+        arg_passthrough = names.join(",");
+      }
+      if (arg_debug === "1") setGlobal("TaskerMCP_Debug", "[]");
+      route = "run";
+      return;
+    case "POST /stop":
+      if (!req.task) return reply(400, { error: "missing 'task'" });
+      arg_task = String(req.task);
+      route = "stop";
+      return;
+    case "POST /vars/get":
+      if (!GLOBAL_NAME.test(String(req.name || "")))
+        return reply(400, { error: "invalid variable name" });
+      var v = global(String(req.name));
+      var isSet = v !== undefined &amp;&amp; v !== null &amp;&amp; String(v) !== "" &amp;&amp; String(v) !== "%" + req.name;
+      return reply(
+        200,
+        isSet ? { name: req.name, value: String(v), set: true } : { name: req.name, set: false },
+      );
+    case "POST /vars/set":
+      if (!GLOBAL_NAME.test(String(req.name || "")) || !/[A-Z]/.test(String(req.name)))
+        return reply(400, { error: "global variable names need at least one upper case letter" });
+      setGlobal(String(req.name), req.value === undefined ? "" : String(req.value));
+      return reply(200, { ok: true });
+    case "POST /vars/list":
+      route = "varlist";
+      return;
+    case "POST /profile":
+      if (!req.name) return reply(400, { error: "missing 'name'" });
+      var done = enableProfile(String(req.name), Boolean(req.enabled));
+      return done
+        ? reply(200, { ok: true })
+        : reply(404, { error: "no profile named " + req.name });
+    case "POST /command":
+      if (!req.command) return reply(400, { error: "missing 'command'" });
+      arg_value = String(req.command);
+      route = "command";
+      return;
+    case "POST /token/rotate":
+      route = "rotate";
+      return;
+    case "GET /runlog":
+      route = "runlog";
+      return;
+    default:
+      return reply(404, { error: "no route " + key });
+  }
+}
+
+try {
+  main();
+} catch (e) {
+  reply(500, { error: "dispatch failed: " + e.message });
+}</Str>
+			<Str sr="arg1" ve="3"/>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="45"/>
+		</Action>
+		<Action sr="act1" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%route</lhs>
+					<op>0</op>
+					<rhs>backup</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act10" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act11" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%route</lhs>
+					<op>0</op>
+					<rhs>varlist</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act12" ve="7">
+			<code>347</code>
+			<se>false</se>
+			<Int sr="arg0" val="3"/>
+			<Str sr="arg1" ve="3"/>
+			<Str sr="arg2" ve="3">%mcp_globals</Str>
+		</Action>
+		<Action sr="act13" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act14" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%route</lhs>
+					<op>0</op>
+					<rhs>import</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act15" ve="7">
+			<code>153</code>
+			<se>false</se>
+			<Int sr="arg0" val="0"/>
+			<Int sr="arg1" val="0"/>
+			<Str sr="arg2" ve="3">%http_request_body</Str>
+		</Action>
+		<Action sr="act16" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act17" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%route</lhs>
+					<op>0</op>
+					<rhs>run</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act18" ve="7">
+			<code>347</code>
+			<se>false</se>
+			<Int sr="arg0" val="7"/>
+			<Str sr="arg1" ve="3"/>
+			<Str sr="arg2" ve="3">%mcp_tasks</Str>
+		</Action>
+		<Action sr="act19" ve="7">
+			<code>130</code>
+			<se>false</se>
+			<Str sr="arg0" ve="3">%arg_task</Str>
+			<Int sr="arg1">
+				<var>%priority+1</var>
+			</Int>
+			<Int sr="arg10" val="1"/>
+			<Str sr="arg2" ve="3">%arg_par1</Str>
+			<Str sr="arg3" ve="3">%arg_par2</Str>
+			<Str sr="arg4" ve="3">%mcp_result</Str>
+			<Int sr="arg5" val="0"/>
+			<Int sr="arg6" val="1"/>
+			<Str sr="arg7" ve="3"/>
+			<Int sr="arg8" val="1"/>
+			<Int sr="arg9" val="0"/>
+			<ConditionList sr="if">
+				<bool0>And</bool0>
+				<Condition sr="c0" ve="3">
+					<lhs>%arg_par1</lhs>
+					<op>12</op>
+					<rhs></rhs>
+				</Condition>
+				<Condition sr="c1" ve="3">
+					<lhs>%arg_par2</lhs>
+					<op>12</op>
+					<rhs></rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act2" ve="7">
+			<code>322</code>
+			<se>false</se>
+			<Str sr="arg0" ve="3">/sdcard/Tasker/tasker-mcp/backup.xml</Str>
+			<Str sr="arg1" ve="3"/>
+			<Int sr="arg2" val="0"/>
+		</Action>
+		<Action sr="act20" ve="7">
+			<code>130</code>
+			<se>false</se>
+			<Str sr="arg0" ve="3">%arg_task</Str>
+			<Int sr="arg1">
+				<var>%priority+1</var>
+			</Int>
+			<Int sr="arg10" val="1"/>
+			<Str sr="arg2" ve="3">%arg_par1</Str>
+			<Str sr="arg3" ve="3"/>
+			<Str sr="arg4" ve="3">%mcp_result</Str>
+			<Int sr="arg5" val="0"/>
+			<Int sr="arg6" val="1"/>
+			<Str sr="arg7" ve="3"/>
+			<Int sr="arg8" val="1"/>
+			<Int sr="arg9" val="0"/>
+			<ConditionList sr="if">
+				<bool0>And</bool0>
+				<Condition sr="c0" ve="3">
+					<lhs>%arg_par1</lhs>
+					<op>12</op>
+					<rhs></rhs>
+				</Condition>
+				<Condition sr="c1" ve="3">
+					<lhs>%arg_par2</lhs>
+					<op>13</op>
+					<rhs></rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act21" ve="7">
+			<code>130</code>
+			<se>false</se>
+			<Str sr="arg0" ve="3">%arg_task</Str>
+			<Int sr="arg1">
+				<var>%priority+1</var>
+			</Int>
+			<Int sr="arg10" val="1"/>
+			<Str sr="arg2" ve="3"/>
+			<Str sr="arg3" ve="3">%arg_par2</Str>
+			<Str sr="arg4" ve="3">%mcp_result</Str>
+			<Int sr="arg5" val="0"/>
+			<Int sr="arg6" val="1"/>
+			<Str sr="arg7" ve="3"/>
+			<Int sr="arg8" val="1"/>
+			<Int sr="arg9" val="0"/>
+			<ConditionList sr="if">
+				<bool0>And</bool0>
+				<Condition sr="c0" ve="3">
+					<lhs>%arg_par1</lhs>
+					<op>13</op>
+					<rhs></rhs>
+				</Condition>
+				<Condition sr="c1" ve="3">
+					<lhs>%arg_par2</lhs>
+					<op>12</op>
+					<rhs></rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act22" ve="7">
+			<code>130</code>
+			<se>false</se>
+			<Str sr="arg0" ve="3">%arg_task</Str>
+			<Int sr="arg1">
+				<var>%priority+1</var>
+			</Int>
+			<Int sr="arg10" val="1"/>
+			<Str sr="arg2" ve="3"/>
+			<Str sr="arg3" ve="3"/>
+			<Str sr="arg4" ve="3">%mcp_result</Str>
+			<Int sr="arg5" val="0"/>
+			<Int sr="arg6" val="1"/>
+			<Str sr="arg7" ve="3"/>
+			<Int sr="arg8" val="1"/>
+			<Int sr="arg9" val="0"/>
+			<ConditionList sr="if">
+				<bool0>And</bool0>
+				<Condition sr="c0" ve="3">
+					<lhs>%arg_par1</lhs>
+					<op>13</op>
+					<rhs></rhs>
+				</Condition>
+				<Condition sr="c1" ve="3">
+					<lhs>%arg_par2</lhs>
+					<op>13</op>
+					<rhs></rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act23" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act24" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%route</lhs>
+					<op>0</op>
+					<rhs>stop</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act25" ve="7">
+			<code>137</code>
+			<se>false</se>
+			<Int sr="arg0" val="0"/>
+			<Str sr="arg1" ve="3">%arg_task</Str>
+		</Action>
+		<Action sr="act26" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act27" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%route</lhs>
+					<op>0</op>
+					<rhs>command</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act28" ve="7">
+			<code>385</code>
+			<se>false</se>
+			<Str sr="arg0" ve="3">%arg_value</Str>
+		</Action>
+		<Action sr="act29" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act3" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act30" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%route</lhs>
+					<op>0</op>
+					<rhs>rotate</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act31" ve="7">
+			<code>130</code>
+			<se>false</se>
+			<Str sr="arg0" ve="3">TaskerMCP.Setup</Str>
+			<Int sr="arg1">
+				<var>%priority+1</var>
+			</Int>
+			<Int sr="arg10" val="1"/>
+			<Str sr="arg2" ve="3">quiet</Str>
+			<Str sr="arg3" ve="3"/>
+			<Str sr="arg4" ve="3">%mcp_newtoken</Str>
+			<Int sr="arg5" val="0"/>
+			<Int sr="arg6" val="0"/>
+			<Str sr="arg7" ve="3"/>
+			<Int sr="arg8" val="1"/>
+			<Int sr="arg9" val="0"/>
+		</Action>
+		<Action sr="act32" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act33" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%route</lhs>
+					<op>0</op>
+					<rhs>config</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act34" ve="7">
+			<code>129</code>
+			<Str sr="arg0" ve="3">status = "202"; ctype = "application/json"; body = JSON.stringify({ ok: true, restarting: true });</Str>
+			<Str sr="arg1" ve="3"/>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="45"/>
+		</Action>
+		<Action sr="act35" ve="7">
+			<code>380</code>
+			<se>false</se>
+			<Bundle sr="arg0">
+	<Vals sr="val">
+		<net.dinglisch.android.tasker.RELEVANT_VARIABLES>&lt;StringArray sr=""/&gt;</net.dinglisch.android.tasker.RELEVANT_VARIABLES>
+		<net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>
+	</Vals>
+</Bundle>
+			<Str sr="arg1" ve="3">%http_request_id</Str>
+			<Str sr="arg2" ve="3">%status</Str>
+			<Str sr="arg3" ve="3"/>
+			<Int sr="arg4" val="0"/>
+			<Str sr="arg5" ve="3">%body</Str>
+			<Str sr="arg6" ve="3">%ctype</Str>
+			<Str sr="arg7" ve="3"/>
+			<Int sr="arg8" val="0"/>
+			<Str sr="arg9" ve="3"/>
+		</Action>
+		<Action sr="act36" ve="7">
+			<code>30</code>
+			<Int sr="arg0" val="0"/>
+			<Int sr="arg1" val="1"/>
+			<Int sr="arg2" val="0"/>
+			<Int sr="arg3" val="0"/>
+			<Int sr="arg4" val="0"/>
+		</Action>
+		<Action sr="act37" ve="7">
+			<code>153</code>
+			<se>false</se>
+			<Int sr="arg0" val="1"/>
+			<Int sr="arg1" val="0"/>
+			<Str sr="arg2" ve="3">%http_request_body</Str>
+		</Action>
+		<Action sr="act38" ve="7">
+			<code>137</code>
+			<Int sr="arg0" val="0"/>
+			<Str sr="arg1" ve="3"/>
+		</Action>
+		<Action sr="act39" ve="7">
+			<code>38</code>
+		</Action>
+		<Action sr="act4" ve="7">
+			<code>37</code>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%route</lhs>
+					<op>0</op>
+					<rhs>list</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act40" ve="7">
+			<code>129</code>
+			<Str sr="arg0" ve="3">// TaskerMCP.Dispatch, last JavaScriptlet before the HTTP Response.
+//
+// Builds the response body for routes that ran Tasker actions after the
+// dispatcher (backup, list, import, run, ...). Routes the dispatcher answered
+// itself arrive here with route = "respond" and are left alone.
+//
+// Errors from actions that run with "Continue Task After Error" surface as the
+// locals %err / %errmsg.
+//
+// Locals set by an earlier JavaScriptlet are NOT visible here as plain JS
+// variables (observed on Tasker 6.6.20), so every input is read with local()
+// and the outputs are declared with var so Tasker copies them back.
+
+var route = String(local("route") || "");
+var status = String(local("status") || "500");
+var ctype = String(local("ctype") || "application/json");
+var body = String(local("body") || "");
+
+function readLocal(fn) {
+  try {
+    var v = typeof fn === "string" ? local(fn) : fn();
+    if (v === undefined || v === null) return "";
+    v = String(v);
+    return /^%[a-z_0-9]+$/.test(v) ? "" : v;
+  } catch (_e) {
+    return "";
+  }
+}
+
+function list(name) {
+  var v;
+  try {
+    // Local Tasker arrays are injected as JS arrays (this worked for the
+    // Test Tasker results); fall back to local("x") and then x1..xN.
+    try {
+      v = eval(name);
+    } catch (_e) {
+      v = local(name);
+    }
+    if (v !== undefined &amp;&amp; v !== null &amp;&amp; typeof v === "object" &amp;&amp; v.length !== undefined) {
+      var arr = [];
+      for (var j = 0; j &lt; v.length; j++) arr.push(String(v[j]));
+      return arr;
+    }
+    if (v === undefined || v === null || v === "" || /^%[a-z_0-9]+$/.test(String(v))) {
+      var items = [];
+      for (var i = 1; i &lt; 100000; i++) {
+        var item = local(name + i);
+        if (item === undefined || item === null || item === "" || /^%/.test(String(item))) break;
+        items.push(String(item));
+      }
+      return items;
+    }
+  } catch (_e) {
+    return [];
+  }
+  if (v === undefined || v === null) return [];
+  if (typeof v === "string") {
+    if (/^%[a-z_0-9]+$/.test(v) || v === "") return [];
+    return v.split(",");
+  }
+  var out = [];
+  for (var k = 0; k &lt; v.length; k++) out.push(String(v[k]));
+  return out;
+}
+
+function respond(code, obj) {
+  status = String(code);
+  body = typeof obj === "string" ? obj : JSON.stringify(obj);
+  route = "respond";
+}
+
+function failed() {
+  return readLocal("err") !== "";
+}
+
+function failure() {
+  return readLocal("errmsg") || "action failed (err " + readLocal("err") + ")";
+}
+
+function finish() {
+  switch (route) {
+    case "backup":
+      if (failed()) return respond(500, { error: "Data Backup failed: " + failure() });
+      var xml = readFile("/sdcard/Tasker/tasker-mcp/backup.xml");
+      if (!xml) return respond(500, { error: "backup file was empty" });
+      ctype = "text/xml";
+      return respond(200, xml);
+    case "list":
+      return respond(200, {
+        projects: list("mcp_projects"),
+        profiles: list("mcp_profiles"),
+        tasks: list("mcp_tasks"),
+        scenes: list("mcp_scenes"),
+        globals: list("mcp_globals"),
+      });
+    case "varlist":
+      return respond(200, {
+        globals: list("mcp_globals"),
+      });
+    case "import":
+      if (failed()) return respond(500, { error: "Import Data failed: " + failure() });
+      return respond(200, { ok: true });
+    case "run": {
+      var known = list("mcp_tasks");
+      var wanted = String(local("arg_task"));
+      if (known.length &amp;&amp; known.indexOf(wanted) &lt; 0)
+        return respond(200, {
+          ok: false,
+          durationMs: 0,
+          error: "no task named " + wanted + "; use list_tasks",
+        });
+      var out = { ok: !failed(), durationMs: Date.now() - Number(local("arg_t0")) };
+      var ret = readLocal("mcp_result");
+      if (ret !== "") out["return"] = ret;
+      if (failed()) out.error = failure();
+      if (local("arg_debug") === "1") {
+        try {
+          out.debug = JSON.parse(global("TaskerMCP_Debug") || "[]");
+        } catch (_e) {
+          out.debug = [];
+        }
+      }
+      return respond(200, out);
+    }
+    case "stop":
+    case "command":
+      if (failed()) return respond(500, { error: failure() });
+      return respond(200, { ok: true });
+    case "rotate": {
+      var t = global("TaskerMCP_Token");
+      if (!t) return respond(500, { error: "token rotation failed" });
+      return respond(200, { token: t });
+    }
+    case "runlog": {
+      // Tasker has no action that exports the Run Log, and readFile() on a
+      // missing file aborts the script, so this route only reports that.
+      return respond(501, {
+        error: "Tasker has no Run Log export action; use get_logcat (Debug To System Log) instead",
+      });
+    }
+    default:
+      return undefined;
+  }
+}
+
+try {
+  finish();
+} catch (e) {
+  respond(500, { error: "finish failed: " + e.message });
+}</Str>
+			<Str sr="arg1" ve="3"/>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="45"/>
+		</Action>
+		<Action sr="act41" ve="7">
+			<code>380</code>
+			<se>false</se>
+			<Bundle sr="arg0">
+	<Vals sr="val">
+		<net.dinglisch.android.tasker.RELEVANT_VARIABLES>&lt;StringArray sr=""/&gt;</net.dinglisch.android.tasker.RELEVANT_VARIABLES>
+		<net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>
+	</Vals>
+</Bundle>
+			<Str sr="arg1" ve="3">%http_request_id</Str>
+			<Str sr="arg2" ve="3">%status</Str>
+			<Str sr="arg3" ve="3"/>
+			<Int sr="arg4" val="0"/>
+			<Str sr="arg5" ve="3">%body</Str>
+			<Str sr="arg6" ve="3">%ctype</Str>
+			<Str sr="arg7" ve="3"/>
+			<Int sr="arg8" val="0"/>
+			<Str sr="arg9" ve="3"/>
+		</Action>
+		<Action sr="act5" ve="7">
+			<code>347</code>
+			<se>false</se>
+			<Int sr="arg0" val="7"/>
+			<Str sr="arg1" ve="3"/>
+			<Str sr="arg2" ve="3">%mcp_tasks</Str>
+		</Action>
+		<Action sr="act6" ve="7">
+			<code>347</code>
+			<se>false</se>
+			<Int sr="arg0" val="5"/>
+			<Str sr="arg1" ve="3"/>
+			<Str sr="arg2" ve="3">%mcp_profiles</Str>
+		</Action>
+		<Action sr="act7" ve="7">
+			<code>347</code>
+			<se>false</se>
+			<Int sr="arg0" val="11"/>
+			<Str sr="arg1" ve="3"/>
+			<Str sr="arg2" ve="3">%mcp_projects</Str>
+		</Action>
+		<Action sr="act8" ve="7">
+			<code>347</code>
+			<se>false</se>
+			<Int sr="arg0" val="6"/>
+			<Str sr="arg1" ve="3"/>
+			<Str sr="arg2" ve="3">%mcp_scenes</Str>
+		</Action>
+		<Action sr="act9" ve="7">
+			<code>347</code>
+			<se>false</se>
+			<Int sr="arg0" val="3"/>
+			<Str sr="arg1" ve="3"/>
+			<Str sr="arg2" ve="3">%mcp_globals</Str>
+		</Action>
+	</Task>
+	<Task sr="task9002">
+		<cdate>1791158400000</cdate>
+		<edate>1791158400000</edate>
+		<id>9002</id>
+		<nme>TaskerMCP.Setup</nme>
+		<pc>Generates a new bearer token into %TaskerMCP_Token and shows it.</pc>
+		<pri>100</pri>
+		<Action sr="act0" ve="7">
+			<code>365</code>
+			<Bundle sr="arg0">
+	<Vals sr="val">
+		<net.dinglisch.android.tasker.RELEVANT_VARIABLES>&lt;StringArray sr=""&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;%uuid
+UUID
+&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;&lt;/StringArray&gt;</net.dinglisch.android.tasker.RELEVANT_VARIABLES>
+		<net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>
+	</Vals>
+</Bundle>
+			<Str sr="arg1" ve="3">GenerateUUID()</Str>
+		</Action>
+		<Action sr="act1" ve="7">
+			<code>547</code>
+			<Str sr="arg0" ve="3">%mcp_uuid1</Str>
+			<Str sr="arg1" ve="3">%uuid</Str>
+			<Int sr="arg2" val="0"/>
+			<Int sr="arg3" val="0"/>
+			<Int sr="arg4" val="0"/>
+			<Int sr="arg5" val="3"/>
+			<Int sr="arg6" val="1"/>
+		</Action>
+		<Action sr="act2" ve="7">
+			<code>365</code>
+			<Bundle sr="arg0">
+	<Vals sr="val">
+		<net.dinglisch.android.tasker.RELEVANT_VARIABLES>&lt;StringArray sr=""&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;%uuid
+UUID
+&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;&lt;/StringArray&gt;</net.dinglisch.android.tasker.RELEVANT_VARIABLES>
+		<net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>
+	</Vals>
+</Bundle>
+			<Str sr="arg1" ve="3">GenerateUUID()</Str>
+		</Action>
+		<Action sr="act3" ve="7">
+			<code>547</code>
+			<Str sr="arg0" ve="3">%mcp_uuid2</Str>
+			<Str sr="arg1" ve="3">%uuid</Str>
+			<Int sr="arg2" val="0"/>
+			<Int sr="arg3" val="0"/>
+			<Int sr="arg4" val="0"/>
+			<Int sr="arg5" val="3"/>
+			<Int sr="arg6" val="1"/>
+		</Action>
+		<Action sr="act4" ve="7">
+			<code>129</code>
+			<Str sr="arg0" ve="3">// TaskerMCP.Setup, after two Tasker Function GenerateUUID() calls that leave
+// their results in %mcp_uuid1 and %mcp_uuid2 (UUID.randomUUID, SecureRandom).
+//
+// Builds a 64 hex character bearer token, stores it in %TaskerMCP_Token, and
+// writes it to a file adb can pull on an emulator. Any failure lands in
+// %TaskerMCP_SetupError so it is visible in the Tasker VARS tab.
+
+var mcp_setup_error = "";
+try {
+  var mcp_new = (String(local("mcp_uuid1")) + String(local("mcp_uuid2")))
+    .replace(/-/g, "")
+    .toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(mcp_new)) throw new Error("bad uuid output: " + mcp_new);
+  setGlobal("TaskerMCP_Token", mcp_new);
+  setGlobal("TaskerMCP_Version", "1");
+  writeFile("/sdcard/Download/tasker-mcp-token.txt", mcp_new, false);
+  setGlobal("TaskerMCP_SetupError", "");
+} catch (e) {
+  mcp_setup_error = String(e &amp;&amp; e.message ? e.message : e);
+  setGlobal("TaskerMCP_SetupError", mcp_setup_error);
+}</Str>
+			<Str sr="arg1" ve="3"/>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="45"/>
+		</Action>
+		<Action sr="act5" ve="7">
+			<code>548</code>
+			<Str sr="arg0" ve="3">TaskerMCP token: %TaskerMCP_Token</Str>
+			<Int sr="arg1" val="1"/>
+			<Str sr="arg10" ve="3"/>
+			<Int sr="arg11" val="1"/>
+			<Int sr="arg12" val="0"/>
+			<Str sr="arg13" ve="3"/>
+			<Int sr="arg14" val="0"/>
+			<Str sr="arg15" ve="3"/>
+			<Int sr="arg2" val="0"/>
+			<Str sr="arg3" ve="3"/>
+			<Str sr="arg4" ve="3"/>
+			<Str sr="arg5" ve="3"/>
+			<Str sr="arg6" ve="3"/>
+			<Str sr="arg7" ve="3"/>
+			<Str sr="arg8" ve="3"/>
+			<Int sr="arg9" val="1"/>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%par1</lhs>
+					<op>1</op>
+					<rhs>quiet</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act6" ve="7">
+			<code>126</code>
+			<Str sr="arg0" ve="3">%TaskerMCP_Token</Str>
+			<Int sr="arg1" val="1"/>
+			<Int sr="arg2" val="0"/>
+			<Int sr="arg3" val="0"/>
+			<Str sr="arg4" ve="3"/>
+		</Action>
+	</Task>
+	<Task sr="task9003">
+		<cdate>1791158400000</cdate>
+		<edate>1791158400000</edate>
+		<id>9003</id>
+		<nme>TaskerMCP.Debug</nme>
+		<pc>Perform Task with %par1 = message to add it to run_task's debug output.</pc>
+		<pri>100</pri>
+		<Action sr="act0" ve="7">
+			<code>129</code>
+			<Str sr="arg0" ve="3">// TaskerMCP.Debug: Perform Task this with %par1 = a message to add it to the
+// debug channel that run_task returns when called with debug: true.
+
+var items;
+try {
+  items = JSON.parse(global("TaskerMCP_Debug") || "[]");
+} catch (_e) {
+  items = [];
+}
+if (!Array.isArray(items)) items = [];
+items.push(String(local("par1")));
+if (items.length &gt; 500) items = items.slice(items.length - 500);
+setGlobal("TaskerMCP_Debug", JSON.stringify(items));</Str>
+			<Str sr="arg1" ve="3"/>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="45"/>
+		</Action>
+	</Task>
+</TaskerData>
