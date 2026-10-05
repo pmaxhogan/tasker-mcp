@@ -1,8 +1,8 @@
 {
   "tolerance": 0.5,
   "measuredOnNode": "v26.5.0",
-  "lines": 99.41,
-  "statements": 99.07,
-  "branches": 93.98,
-  "functions": 99.01
+  "lines": 99.45,
+  "statements": 99.11,
+  "branches": 94.34,
+  "functions": 98.85
 }
