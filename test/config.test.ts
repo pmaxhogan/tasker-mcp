@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ConfigError, HELP_TEXT, loadConfig } from "../src/config.ts";
+import { ConfigError, DEFAULT_POLICY, HELP_TEXT, loadConfig } from "../src/config.ts";
 
 const home = () => "/home/u";
 const load = (argv: string[], env: NodeJS.ProcessEnv = {}, read?: (p: string) => string) =>
@@ -42,6 +42,7 @@ describe("loadConfig", () => {
       timeoutMs: 5000,
       adbPath: "/opt/adb",
       autoForward: false,
+      policy: { allowConfigImport: true },
     });
   });
 
@@ -117,5 +118,49 @@ describe("loadConfig", () => {
     expect(() => load(["--nope", "x"])).toThrow(/Unknown option/);
     expect(() => load(["positional"])).toThrow(/Unexpected argument/);
     expect(() => load(["--url"])).toThrow(/needs a value/);
+  });
+});
+
+describe("write policy", () => {
+  it("defaults to everything writable with config imports", () => {
+    expect(load([]).config.policy).toEqual({ allowConfigImport: true });
+    expect(load(["--help"]).config.policy).toEqual({ allowConfigImport: true });
+    expect(DEFAULT_POLICY).toEqual({ allowConfigImport: true });
+    expect(HELP_TEXT).toContain("--write-allow");
+    expect(HELP_TEXT).toContain("TASKER_ALLOW_CONFIG_IMPORT");
+    expect(HELP_TEXT).toContain("--no-config-import");
+  });
+
+  it("reads the allow list; config imports then default to off", () => {
+    expect(load([], { TASKER_WRITE_ALLOW: " TaskerMCP., MCPTest. ,," }).config.policy).toEqual({
+      allowPrefixes: ["TaskerMCP.", "MCPTest."],
+      allowConfigImport: false,
+    });
+    expect(
+      load(["--write-allow", "A."], { TASKER_WRITE_ALLOW: "B." }).config.policy.allowPrefixes,
+    ).toEqual(["A."]);
+    expect(() => load(["--write-allow", " , "])).toThrow(/write allow list/);
+  });
+
+  it("lets the config import switch override the default", () => {
+    expect(
+      load(["--write-allow=A.", "--allow-config-import"]).config.policy.allowConfigImport,
+    ).toBe(true);
+    expect(load(["--no-config-import"]).config.policy.allowConfigImport).toBe(false);
+    expect(
+      load([], { TASKER_WRITE_ALLOW: "A.", TASKER_ALLOW_CONFIG_IMPORT: "yes" }).config.policy
+        .allowConfigImport,
+    ).toBe(true);
+    expect(load([], { TASKER_ALLOW_CONFIG_IMPORT: "false" }).config.policy.allowConfigImport).toBe(
+      false,
+    );
+    expect(
+      load(["--allow-config-import"], { TASKER_ALLOW_CONFIG_IMPORT: "0" }).config.policy
+        .allowConfigImport,
+    ).toBe(true);
+    expect(() => load([], { TASKER_ALLOW_CONFIG_IMPORT: "maybe" })).toThrow(
+      /TASKER_ALLOW_CONFIG_IMPORT/,
+    );
+    expect(() => load(["--allow-config-import=1"])).toThrow(/Unknown option/);
   });
 });
