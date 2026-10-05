@@ -1,10 +1,10 @@
 {
   "meta": {
-    "generated": "2026-10-04",
-    "taskerVersion": "6.6.20",
+    "generated": "2026-10-05",
+    "taskerVersion": "6.5.11",
     "sources": [
       "MapTasker task_all_actions.json and category_descriptions.json (MIT, github.com/mctinker/Map-Tasker)",
-      "Tasker 6.6.20 (net.dinglisch.android.taskerm) APK string resources, tasker.joaoapps.com",
+      "Tasker 6.5.11 (net.dinglisch.android.taskerm) APK string resources, tasker.joaoapps.com",
       "Tasker-XML-Info Tasker_XML_Codes.md (MIT, github.com/Taskomater/Tasker-XML-Info)"
     ]
   },
@@ -2425,8 +2425,7 @@
           "name": "Use Shizuku",
           "type": 3,
           "isMandatory": true,
-          "sortOrder": 2147482655,
-          "label": "Use Shizuku"
+          "sortOrder": 2147482655
         }
       ],
       "resName": "an_run_shell"
@@ -9988,8 +9987,7 @@
           "sortOrder": 2147482649,
           "label": "Profile"
         }
-      ],
-      "resName": "an_work_profile_private_space"
+      ]
     },
     {
       "code": 442,
@@ -11309,8 +11307,7 @@
           "sortOrder": 2147482649,
           "label": "Structure Output (JSON, etc)"
         }
-      ],
-      "resName": "an_java_code"
+      ]
     },
     {
       "code": 475,
@@ -11395,8 +11392,7 @@
           "sortOrder": 2147482649,
           "label": "Sound"
         }
-      ],
-      "resName": "an_assistant_volume"
+      ]
     },
     {
       "code": 478,
