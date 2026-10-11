@@ -228,9 +228,9 @@ Tools that change your Tasker configuration or phone state are marked **yes**.
 
 ### Saving to disk
 
-| Tool             | What it does                                                                                                                                                                                                                            | Mutates |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `persist_config` | Save Tasker's running configuration to disk so changes survive a Tasker restart or reboot. Drives Tasker's editor over adb (Data > Restore of the live backup, then Back to save); needs an unlocked screen and takes about 25 seconds. | yes     |
+| Tool             | What it does                                                                                                                                                                                                                                           | Mutates |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `persist_config` | Save Tasker's running configuration to disk so changes survive a Tasker restart or reboot. Drives Tasker's editor over adb (Data > Restore of the live backup, then the Apply checkmark to save); needs an unlocked screen and takes about 25 seconds. | yes     |
 
 Every mutating tool's result carries `persisted` (and a `persistHint` when it
 is `false`). See Limitations for why.
@@ -303,8 +303,8 @@ library was checked against Tasker's own editor, in both directions, is in
   with `TASKER_AUTO_PERSIST=true`, which does it after every change). It needs
   adb (with `TASKER_URL` set, also `TASKER_ADB_SERIAL`) and an unlocked
   screen; on a phone without adb, do it by hand: **Tasker >
-  menu > Data > Restore > User Local Backup > tasker-mcp-live > OK, then press
-  Back**. (Global variables and a profile's on/off state are saved by Tasker
+  menu > Data > Restore > User Local Backup > tasker-mcp-live > OK, then tap the
+  checkmark in the toolbar (or press Back)**. (Global variables and a profile's on/off state are saved by Tasker
   itself, but that save does not include other unsaved changes, so
   `set_profile_enabled` still reports `persisted: false`.)
 - Imported new tasks always land in the default `Base` project. Use

@@ -93,8 +93,7 @@ export async function finishMutation(ctx: ToolContext, warnings: string[]): Prom
       );
       return notPersisted;
     }
-    const r = await persistConfig(ctx);
-    warnings.push(...r.warnings);
+    await persistConfig(ctx);
     return { persisted: true };
   } catch (e) {
     const hint = e instanceof ToolError && e.hint !== undefined ? `; ${e.hint}` : "";
