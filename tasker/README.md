@@ -141,6 +141,13 @@ Verified on Tasker 6.6.20 (trial build) on an Android 17 emulator.
   it on localhost.
 - With "Debug To System Log" on, Tasker writes variable values, including the
   token while Setup runs, to logcat. `get_logcat` redacts the token it knows.
+- A manual run of `TaskerMCP.Setup` copies the token to the clipboard so it
+  can be pasted rather than retyped. It is flagged as sensitive, which keeps
+  it out of Android's clipboard preview, but the clipboard is still readable
+  by the keyboard app and the app in the foreground, and clipboard history or
+  cross-device clipboard sync may keep a copy. Copy something else afterwards,
+  and rotate the token (run Setup again, or `POST /token/rotate`) if you think
+  it leaked. Rotation over HTTP never touches the clipboard.
 - `TaskerMCP.Setup` writes the token to shared storage only on an emulator
   (device model `sdk_*`), where `adb` reads it. On a real phone the token
   stays in the `%TaskerMCP_Token` global; read it from the Flash or the VARS
