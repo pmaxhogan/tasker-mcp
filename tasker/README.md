@@ -111,8 +111,10 @@ Verified on Tasker 6.6.20 (trial build) on an Android 17 emulator.
      `tasker-mcp-live` (the picker lists `Tasker/configs/user/`), then OK on
      "This will overwrite existing data. Continue ?". The editor now shows the
      live data and is dirty (Apply appears).
-  3. Back: logcat shows `EXIT: ... dirty: true` and `saveData: ok: true`.
-     Then Home.
+  3. Tap Apply, the checkmark in the toolbar. It saves exactly as leaving the
+     editor with Back does (with Debug To System Log on, logcat shows
+     `saveData: ok: true`), and the checkmark goes away, which is what the
+     server waits for. Then Home.
   4. The restore may restart the monitor, so the server waits for `/ping` and
      re-reads `/backup` to check that nothing changed.
 

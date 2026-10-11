@@ -7,8 +7,8 @@
  *   createFakeContext({ exec: android.exec, config: { adbSerial: "emulator-5554" } });
  *
  * `am start` shows the main screen (or the nag first, with nagOnStart); a tap
- * at a node's center follows TRANSITIONS; BACK on the restored editor saves
- * (logcat gains the save lines and onSave runs). Every adb call is recorded
+ * at a node's center follows TRANSITIONS; Apply (or BACK) on the restored
+ * editor saves (logcat gains the save lines and onSave runs). Every adb call is recorded
  * in `calls` without the leading "-s <serial>".
  */
 import { readFileSync } from "node:fs";
@@ -54,6 +54,8 @@ export const TRANSITIONS: Partial<Record<Screen, Record<string, Screen>>> = {
   "04-restore": { "User Local Backup": "05-picker" },
   "05-picker": { "tasker-mcp-live": "06-confirm", backup: "06-confirm" },
   "06-confirm": { OK: "07-after", CANCEL: "01-start" },
+  // Apply saves and leaves the editor open and clean (no checkmark, like 01-start).
+  "07-after": { Apply: "01-start" },
 };
 
 export const SAVE_LOG =
@@ -68,15 +70,17 @@ export class FakeAndroid {
   nagOnStart = false;
   windowDump = "    mShowingDream=false mDreamingLockscreen=false\n    isKeyguardShowing=false\n";
   powerDump = "  mWakefulness=Awake\n  mWakefulnessChanging=false\n";
-  /** What `logcat -d` prints; BACK on the restored editor sets it to saveLog. */
+  /** What `logcat -d` prints; saving the restored editor appends saveLog. */
   logcat = "";
   saveLog = SAVE_LOG;
   /** Fail the next N `uiautomator dump` calls with an ERROR line. */
   dumpErrors = 0;
   /** Exit code for every call whose args include this string. */
   failOn: { match: string; code: number; stderr?: string } | undefined;
-  /** Runs when BACK leaves the restored editor (the save). */
+  /** Runs when the restored editor is saved (Apply, or BACK). */
   onSave: (() => void) | undefined;
+  /** When true, tapping Apply does nothing (the checkmark stays). */
+  applyStuck = false;
   /** Replace the screen to show for a fixture name (e.g. a picker without the entry). */
   overrides: Partial<Record<Screen, string>> = {};
 
@@ -103,9 +107,18 @@ export class FakeAndroid {
       const next = table[label];
       if (next === undefined) continue;
       if (this.screen === "05-picker") this.picked = label;
+      if (this.screen === "07-after") {
+        if (this.applyStuck) return;
+        this.save();
+      }
       this.screen = next;
       return;
     }
+  }
+
+  private save(): void {
+    this.logcat += this.saveLog;
+    this.onSave?.();
   }
 
   private key(code: string): void {
@@ -115,8 +128,7 @@ export class FakeAndroid {
     }
     if (code === "KEYCODE_BACK") {
       if (this.screen === "07-after") {
-        this.logcat += this.saveLog;
-        this.onSave?.();
+        this.save();
         this.screen = "home";
       } else if (this.screen === "01-start") {
         this.screen = "home";
