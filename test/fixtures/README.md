@@ -23,3 +23,4 @@ at download time (2026-10-04).
 | File | Provenance |
 |---|---|
 | `emulator/gt-actions.xml` | Built in the Tasker 6.6.20 trial GUI on the Pixel_8 emulator with `scripts/device/add-actions.mjs` (default args; placeholder `%gtvar` where a field was mandatory), exported with Data Backup. Ground truth for the arg layouts of the actions the phone project uses. |
+| `emulator/conformance-gui.xml` | Tasks `Conf.A1`..`Conf.A7`, built by hand in the Tasker 6.6.20 trial task editor on the Pixel_8 emulator (uiautomator driving the GUI), read back with `get_task_xml` and joined under one `TaskerData` root (no other edits). GUI ground truth for `test/conformance.test.ts`; see `docs/conformance.md`. No tokens (checked for 64-hex strings). |

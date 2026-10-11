@@ -1,6 +1,12 @@
 /**
  * Pure edits on a TaskJson. The result is a new TaskJson with action `index`
  * and `depth` recomputed; the input is not mutated.
+ *
+ * A rename is `set.name` here, then planReplaceTask(current, next, lookup,
+ * { baseName: oldName }) so the old task is the base, then (after the import)
+ * deleting the old task by name as reported in the plan's `renamedFrom`, and
+ * moving the new one to `targetProject`. Without `baseName` a renamed task is
+ * planned as a brand-new task and the old one is left on the phone.
  */
 
 import type { ActionJson, TaskJson } from "../model/types.ts";
@@ -14,6 +20,7 @@ export interface TaskSplice {
 }
 
 export interface TaskSet {
+  /** New name. Pass the old name as planReplaceTask's `baseName`; see the module doc. */
   name?: string;
   /** null removes the field (Tasker default). */
   priority?: number | null;

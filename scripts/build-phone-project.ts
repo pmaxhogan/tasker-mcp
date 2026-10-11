@@ -24,7 +24,9 @@ export const PORT = 1821;
 /** Bump when the phone project changes in a way the server must know about. */
 export const PHONE_PROJECT_VERSION = "1";
 const TV = "6.6.20";
-const BACKUP_PATH = "/sdcard/Tasker/tasker-mcp/backup.xml";
+// Data Backup writes the live (Active) configuration where Tasker's Data > Restore >
+// User Local Backup picker looks, so persisting it to disk is one restore away.
+const BACKUP_PATH = "/sdcard/Tasker/configs/user/tasker-mcp-live.xml";
 
 const root = (p: string) => fileURLToPath(new URL(`../${p}`, import.meta.url));
 const js = (name: string) => readFileSync(root(`tasker/js/${name}`), "utf8").trimEnd();

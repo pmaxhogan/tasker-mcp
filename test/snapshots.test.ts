@@ -59,6 +59,61 @@ describe("SnapshotStore", () => {
     expect((await store.get(c.id)).xml).toBe("c");
   });
 
+  it("gives concurrent saves in the same millisecond distinct ids without overwriting", async () => {
+    const fixed = () => new Date(Date.UTC(2026, 9, 4, 1, 2, 3, 4));
+    const store = new SnapshotStore(root, { now: fixed });
+    const xmls = ["a", "b", "c", "d", "e"];
+    const infos = await Promise.all(xmls.map((x) => store.save(x, { label: "x" })));
+    expect(new Set(infos.map((i) => i.id)).size).toBe(xmls.length);
+    for (let i = 0; i < xmls.length; i++) {
+      expect((await store.get(infos[i]!.id)).xml).toBe(xmls[i]);
+    }
+  });
+
+  it("skips an id whose metadata file already exists and cleans up its own xml", async () => {
+    const fixed = () => new Date(Date.UTC(2026, 9, 4, 1, 2, 3, 4));
+    const store = new SnapshotStore(root, { now: fixed });
+    const base = "20261004T010203004Z-x";
+    await writeFile(join(root, `${base}.json`), "{}");
+    const info = await store.save("<a/>", { label: "x" });
+    expect(info.id).toBe(`${base}~2`);
+    expect((await readdir(root)).sort()).toEqual([
+      `${base}.json`,
+      `${base}~2.json`,
+      `${base}~2.xml`,
+    ]);
+  });
+
+  it("gives up with an error when every suffix is taken", async () => {
+    const fixed = () => new Date(Date.UTC(2026, 9, 4, 1, 2, 3, 4));
+    const store = new SnapshotStore(root, { now: fixed });
+    const base = "20261004T010203004Z-x";
+    await writeFile(join(root, `${base}.xml`), "");
+    for (let n = 2; n <= 1000; n++) await writeFile(join(root, `${base}~${n}.xml`), "");
+    await expect(store.save("<a/>", { label: "x" })).rejects.toThrow(
+      /could not find a free snapshot id/,
+    );
+  });
+
+  it("derives ids from validated filenames and leaves stray files alone", async () => {
+    const store = new SnapshotStore(root, { keep: 1, now: clock() });
+    const a = await store.save("<a/>", { label: "one" });
+    // A stray file whose content claims a path-traversal id: ignored by list and prune.
+    const stray = { id: "../../outside", createdAt: "2026-01-01T00:00:00Z", label: "s" };
+    await writeFile(join(root, "stray.json"), JSON.stringify(stray));
+    // A real-looking file whose content lies about its id: the filename wins.
+    const liar = "20261004T231500000Z-liar";
+    await writeFile(join(root, `${liar}.json`), JSON.stringify({ ...stray, id: "../x" }));
+    await writeFile(join(root, "20261004T231500001Z-null.json"), "null");
+    const ids = (await store.list()).map((i) => i.id);
+    expect(ids).toEqual([a.id, liar]);
+    await store.save("<b/>", { label: "two" });
+    const left = (await readdir(root)).sort();
+    expect(left).toContain("stray.json");
+    expect(left).not.toContain(`${liar}.json`);
+    expect(left).not.toContain(`${a.id}.xml`);
+  });
+
   it("lists newest first and round-trips with get", async () => {
     const store = new SnapshotStore(root, { now: clock() });
     const a = await store.save("<a/>", { label: "one" });

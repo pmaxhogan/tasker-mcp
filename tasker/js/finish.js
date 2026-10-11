@@ -82,7 +82,7 @@ function finish() {
   switch (route) {
     case "backup":
       if (failed()) return respond(500, { error: "Data Backup failed: " + failure() });
-      var xml = readFile("/sdcard/Tasker/tasker-mcp/backup.xml");
+      var xml = readFile("/sdcard/Tasker/configs/user/tasker-mcp-live.xml");
       if (!xml) return respond(500, { error: "backup file was empty" });
       ctype = "text/xml";
       return respond(200, xml);

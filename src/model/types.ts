@@ -39,8 +39,22 @@ export interface ActionJson {
   /** Continue task after error (`<se>`). */
   continueOnError?: boolean;
   condition?: ConditionListJson;
+  /**
+   * Editor fold state of an If/For block (`<coll>true|false</coll>`), kept so
+   * a round trip is byte-identical. Absent when the XML has no `<coll>`.
+   */
+  collapsed?: boolean;
   args: ArgJson[];
-  /** Set when the code is not in the spec table: the original XML of the action. */
+  /**
+   * The original XML of an action this layer does not fully model (unknown
+   * code, unmodelled child, non-7 ve). Edits to code-independent structured
+   * fields (enabled, label, continueOnError, collapsed, condition, args) are
+   * applied onto it when converting back; changing `code` is refused.
+   * Omitted fields mean what they mean on any action: `enabled` true,
+   * `continueOnError` false, no `label`, no `condition` (so `{code, raw}`
+   * whose raw has `<on>false</on>` comes back enabled). Omitted args are the
+   * exception: an arg the JSON leaves out is kept from the raw XML.
+   */
   raw?: string;
   /** Nesting depth from If/For blocks, for display only. */
   depth?: number;

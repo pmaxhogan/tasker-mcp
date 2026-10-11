@@ -90,15 +90,14 @@ describe("golden: actionToElement reproduces real actions byte for byte", () => 
     "public/rho.prj.xml",
     "public/ktools-alarm.prj.xml",
     "public/taskerbchsdk-bch-monitor.prj.xml",
-  ])("every action in %s except collapsed blocks (fillDefaults off)", (rel) => {
+  ])("every action in %s (fillDefaults off)", (rel) => {
     for (const el of actions(rel)) {
       const orig = serializeElement(el);
-      if (orig.includes("<coll>")) continue;
       expect(regen(el, false)).toBe(orig);
     }
   });
 
-  it.each(["public/rho.prj.xml", "public/ktools-alarm.prj.xml"])(
+  it.each(["dceluis-mcp-server.prj.xml", "public/rho.prj.xml", "public/ktools-alarm.prj.xml"])(
     "every whole task in %s, defaults on",
     (rel) => {
       for (const t of loadDoc(rel).tasks()) {
@@ -114,9 +113,20 @@ describe("golden: actionToElement reproduces real actions byte for byte", () => 
     },
   );
 
-  it("drops <coll> (editor UI state, not modelled)", () => {
+  it("keeps <coll> exactly as written (true or false)", () => {
     const el = pick("dceluis-mcp-server.prj.xml", /<coll>/);
-    expect(regen(el)).not.toContain("<coll>");
+    expect(actionToJson(el, lookup).collapsed).toBe(false);
+    expect(regen(el)).toBe(serializeElement(el));
+    const t = parseFragment('<Action sr="act0" ve="7"><code>37</code><coll>true</coll></Action>');
+    const j = actionToJson(t, lookup);
+    expect(j.collapsed).toBe(true);
+    expect(j.raw).toBeUndefined();
+    expect(serializeElement(actionToElement(j, lookup))).toContain("<coll>true</coll>");
+    // Anything but true/false is not understood: kept raw, never normalized.
+    const odd = parseFragment('<Action sr="act0" ve="7"><code>37</code><coll>1</coll></Action>');
+    const oj = actionToJson(odd, lookup);
+    expect(oj.collapsed).toBeUndefined();
+    expect(oj.raw).toContain("<coll>1</coll>");
   });
 });
 
@@ -284,7 +294,8 @@ describe("actionToElement", () => {
         '\t\t\t<Int sr="arg3" val="0"/>',
         '\t\t\t<Int sr="arg4" val="0"/>',
         '\t\t\t<Int sr="arg5" val="3"/>',
-        '\t\t\t<Int sr="arg6" val="0"/>',
+        // Structure Output ("bosta") is on by default, as in a GUI-built Variable Set.
+        '\t\t\t<Int sr="arg6" val="1"/>',
         "\t\t</Action>",
       ].join("\n"),
     );
@@ -519,5 +530,138 @@ describe("helpers", () => {
     const back = parseXml(xml);
     expect(serializeXml(back)).toBe(xml);
     expect(taskToJson(children(back.root, "Task")[0]!, lookup).name).toBe("T");
+  });
+});
+
+describe("actionToElement on raw actions", () => {
+  // Flash (548) with an unmodelled child: kept as raw XML.
+  const RAW = [
+    '<Action sr="act3" ve="7">',
+    "\t\t\t<code>548</code>",
+    "\t\t\t<foo>keep me</foo>",
+    '\t\t\t<Str sr="arg0" ve="3">hello</Str>',
+    '\t\t\t<Int sr="arg1" val="1"/>',
+    "\t\t</Action>",
+  ].join("\n");
+  const base = (): ActionJson => actionToJson(parseFragment(RAW), lookup);
+  const out = (a: ActionJson, index = 3): string =>
+    serializeElement(actionToElement(a, lookup, { index }));
+
+  it("is raw, and unedited it is written back verbatim with only sr fixed", () => {
+    const j = base();
+    expect(j.raw).toBe(RAW);
+    expect(out(j)).toBe(RAW);
+    expect(out(j, 0)).toBe(RAW.replace('sr="act3"', 'sr="act0"'));
+    // Bool true equals Int 1: no edit.
+    const b = {
+      ...j,
+      args: [...j.args.slice(0, 1), { id: 1, kind: "Bool" as const, value: true }],
+    };
+    expect(out(b)).toBe(RAW);
+    // Args the JSON leaves out are kept, not deleted.
+    expect(out({ ...j, args: [] })).toBe(RAW);
+  });
+
+  it("applies structured edits onto the raw element and keeps unknown children", () => {
+    const j: ActionJson = {
+      ...base(),
+      enabled: false,
+      label: "L",
+      continueOnError: true,
+      collapsed: false,
+      condition: { conditions: [{ lhs: "%a", op: 0, rhs: "1" }] },
+      args: [
+        { id: 0, kind: "Str", value: "bye" },
+        { id: 0, kind: "Str", value: "ignored duplicate" },
+        { id: 2, kind: "Bool", value: true },
+      ],
+    };
+    expect(out(j)).toBe(
+      [
+        '<Action sr="act3" ve="7">',
+        "\t\t\t<code>548</code>",
+        "\t\t\t<coll>false</coll>",
+        "\t\t\t<foo>keep me</foo>",
+        "\t\t\t<label>L</label>",
+        "\t\t\t<on>false</on>",
+        "\t\t\t<se>false</se>",
+        '\t\t\t<Str sr="arg0" ve="3">bye</Str>',
+        '\t\t\t<Int sr="arg1" val="1"/>',
+        '\t\t\t<Int sr="arg2" val="1"/>',
+        '\t\t\t<ConditionList sr="if">',
+        '\t\t\t\t<Condition sr="c0" ve="3">',
+        "\t\t\t\t\t<lhs>%a</lhs>",
+        "\t\t\t\t\t<op>0</op>",
+        "\t\t\t\t\t<rhs>1</rhs>",
+        "\t\t\t\t</Condition>",
+        "\t\t\t</ConditionList>",
+        "\t\t</Action>",
+      ].join("\n"),
+    );
+    const back = actionToJson(actionToElement(j, lookup, { index: 3 }), lookup);
+    expect(back.raw).toContain("<foo>keep me</foo>");
+    expect(back).toMatchObject({ enabled: false, label: "L", continueOnError: true });
+
+    // And back again: enable, drop the label, the se, and the condition.
+    const undo: ActionJson = {
+      ...back,
+      enabled: true,
+      continueOnError: false,
+      collapsed: true,
+      condition: { conditions: [] },
+    };
+    delete undo.label;
+    const s = out(undo);
+    expect(s).not.toMatch(/<on>|<label|<se>|ConditionList/);
+    expect(s).toContain("<coll>true</coll>");
+    expect(s).toContain("<foo>keep me</foo>");
+  });
+
+  it("keeps a non-7 ve and its unmodelled attributes when editing", () => {
+    const raw =
+      '<Action sr="act0" ve="8" x="y"><code>548</code><Str sr="arg0" ve="3">a</Str></Action>';
+    const j = actionToJson(parseFragment(raw), lookup);
+    expect(j.raw).toBe(raw);
+    const s = serializeElement(
+      actionToElement({ ...j, args: [{ id: 0, kind: "Str", value: "b" }] }, lookup),
+    );
+    expect(s.startsWith('<Action sr="act0" ve="8" x="y">\n')).toBe(true);
+    expect(s).toContain('<Str sr="arg0" ve="3">b</Str>');
+  });
+
+  it("refuses edits it cannot apply safely, with a clear message", () => {
+    expect(() => out({ ...base(), code: 547 })).toThrow(
+      /cannot apply structured edits to action 3: code 547 does not match.*edit its raw XML instead/,
+    );
+    const mixed = '<Action sr="act0" ve="7"><code>548</code><!-- c --><foo/></Action>';
+    const mj = actionToJson(parseFragment(mixed), lookup);
+    expect(serializeElement(actionToElement(mj, lookup))).toBe(mixed);
+    expect(() => actionToElement({ ...mj, enabled: false }, lookup)).toThrow(
+      /cannot apply structured edits to action 0: .*comments/,
+    );
+  });
+
+  it("validates the raw root and Raw arg tags", () => {
+    expect(() => actionToElement({ code: 548, args: [], raw: "<Task/>" }, lookup)).toThrow(
+      /raw XML must be an <Action> element, got <Task>/,
+    );
+    const badArg = { id: 0, kind: "Raw" as const, tag: "Bundle", raw: '<App sr="arg0"/>' };
+    expect(() => argToElement(badArg)).toThrow(/<App> element but its tag says "Bundle"/);
+    expect(() => out({ ...base(), args: [badArg] })).toThrow(/tag says "Bundle"/);
+  });
+});
+
+describe("editor defaults", () => {
+  it("fills Perform Task Priority and Show Scene overlays the way the Tasker editor does", () => {
+    const pt = serializeElement(
+      actionToElement({ code: 130, args: [{ id: 0, kind: "Str", value: "X" }] }, lookup),
+    );
+    expect(pt).toContain("<var>%priority</var>");
+    expect(pt).toContain('<Int sr="arg10" val="1"/>');
+    const ss = serializeElement(
+      actionToElement({ code: 47, args: [{ id: 0, kind: "Str", value: "S" }] }, lookup),
+    );
+    expect(ss).toContain('<Int sr="arg9" val="1"/>');
+    expect(ss).toContain('<Int sr="arg10" val="1"/>');
   });
 });
