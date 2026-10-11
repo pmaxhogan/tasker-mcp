@@ -64,18 +64,19 @@ function timing(): Partial<PersistTiming> {
 }
 
 describe("persistConfig", () => {
-  it("restores tasker-mcp-live in the editor, saves on Back, and verifies", async () => {
+  it("restores tasker-mcp-live in the editor, saves with Apply, and verifies", async () => {
     const { ctx, phone } = await setup();
     const r = await persistConfig(ctx, timing());
-    expect(r).toEqual({ persisted: true, durationMs: expect.any(Number), warnings: [] });
+    expect(r).toEqual({ persisted: true, durationMs: expect.any(Number) });
     expect(android.picked).toBe("tasker-mcp-live");
     expect(android.screen).toBe("home");
     const cmds = android.commands();
     expect(cmds).toContain("shell am start -n net.dinglisch.android.taskerm/.Tasker -f 0x10008000");
+    // Apply is tapped; the editor is never left with Back.
     expect(cmds.filter((c) => c.startsWith("shell input keyevent"))).toEqual([
-      "shell input keyevent KEYCODE_BACK",
       "shell input keyevent KEYCODE_HOME",
     ]);
+    expect(cmds).toContain("shell input tap 786 205");
     expect(cmds).toContain("shell logcat -d -v brief -T 1791167655.000");
     // Screen check comes first, before anything is touched.
     expect(cmds.slice(0, 2)).toEqual(["shell dumpsys window", "shell dumpsys power"]);
@@ -164,20 +165,28 @@ describe("persistConfig", () => {
     await expect(persistConfig(ctx, timing())).rejects.toThrow(/saving its configuration failed/);
   });
 
-  it("fails when the editor left without saving", async () => {
-    android.saveLog = "D/Tasker: T: EXIT: from back: save: true dirty: false must save: false\n";
+  it("fails when the checkmark stays after Apply is tapped", async () => {
+    android.applyStuck = true;
     const { ctx } = await setup();
-    await expect(persistConfig(ctx, timing())).rejects.toThrow(/without saving/);
+    const e = await persistConfig(ctx, { ...timing(), stepTimeoutMs: 2000 }).catch(
+      (x: unknown) => x,
+    );
+    expect((e as Error).message).toMatch(/could not drive Tasker's editor: timed out waiting/);
+    expect((e as Error).message).toContain("Apply");
+    expect((e as { hint: string }).hint).toContain(MANUAL_STEPS);
   });
 
-  it("warns when logcat shows nothing (or fails) but the re-read matches", async () => {
+  it("needs no log line: the checkmark going away confirms the save", async () => {
+    // What a phone without "Debug To System Log" shows, and what leaving for
+    // the launcher may log afterwards.
     android.saveLog = "";
     const { ctx } = await setup();
     const r = await persistConfig(ctx, { ...timing(), logTimeoutMs: 1000 });
-    expect(r.warnings).toEqual([expect.stringMatching(/not confirmed in logcat/)]);
+    expect(r.persisted).toBe(true);
+    android.logcat = "D/Tasker: T: EXIT: from home: save: true dirty: false must save: false\n";
+    expect((await persistConfig(ctx, timing())).persisted).toBe(true);
     android.failOn = { match: "logcat", code: 1 };
-    const r2 = await persistConfig(ctx, { ...timing(), logTimeoutMs: 0 });
-    expect(r2.warnings).toHaveLength(1);
+    expect((await persistConfig(ctx, { ...timing(), logTimeoutMs: 0 })).persisted).toBe(true);
   });
 
   it("retries the verify read while Tasker restarts", async () => {
@@ -298,14 +307,6 @@ describe("persist_config tool", () => {
     const r = await t!.call("persist_config");
     expect(r.isError).toBe(false);
     expect(r.json).toEqual({ persisted: true, durationMs: expect.any(Number) });
-  });
-
-  it("passes warnings through", async () => {
-    android.saveLog = "";
-    Object.assign(persistDefaults, { logTimeoutMs: 0 });
-    await setup();
-    const r = await t!.call("persist_config");
-    expect(r.json.warnings).toHaveLength(1);
   });
 
   it("fails with the manual steps without adb", async () => {

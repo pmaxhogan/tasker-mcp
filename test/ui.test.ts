@@ -179,6 +179,15 @@ describe("UiDriver", () => {
     ]);
   });
 
+  it("waits for a node to go away, and gives up on timeout", async () => {
+    const android = new FakeAndroid();
+    android.screen = "07-after";
+    const ui = driver(android);
+    await expect(ui.waitGone("desc:Apply", 1000)).rejects.toThrow(/"desc:Apply" to go away/);
+    android.screen = "01-start";
+    await expect(ui.waitGone("desc:Apply", 1000)).resolves.toBeUndefined();
+  });
+
   it("throws when nothing matches a tap", async () => {
     const android = new FakeAndroid();
     android.screen = "01-start";

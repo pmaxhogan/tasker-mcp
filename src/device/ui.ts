@@ -260,6 +260,19 @@ export class UiDriver {
     }
   }
 
+  /** Poll until no node matches `q` any more. Throws on timeout. */
+  async waitGone(q: string, timeoutMs: number): Promise<void> {
+    const end = this.now() + timeoutMs;
+    for (;;) {
+      const nodes = await this.dump();
+      if (!nodes.some((n) => matches(n, q))) return;
+      if (this.now() >= end) {
+        throw new Error(`timed out waiting for ${JSON.stringify(q)} to go away`);
+      }
+      await this.sleep(this.pollMs);
+    }
+  }
+
   /**
    * If a titled alert is showing, tap its nag button ("Don't Show Again",
    * "STOP REMINDING", else "OK"). Returns true when it tapped something.

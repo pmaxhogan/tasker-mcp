@@ -13,7 +13,10 @@
  *    /sdcard/Tasker/configs/user/tasker-mcp-live.xml.
  * 2. Open the editor fresh (CLEAR_TASK), menu > Data > Restore > User Local
  *    Backup > tasker-mcp-live > OK. The editor now holds the live data and is
- *    dirty; Back leaves it and Tasker saves (logcat: "saveData: ok: true").
+ *    dirty, so its toolbar shows the Apply checkmark. Tapping it saves, just
+ *    as leaving the editor with Back does (logcat: "saveData: ok: true"), and
+ *    the checkmark goes away, which is the confirmation that does not depend
+ *    on Tasker's "Debug To System Log" preference.
  * 3. Wait for /ping (the restore may restart the monitor), then read /backup
  *    again and check nothing changed.
  */
@@ -28,7 +31,7 @@ export const PERSIST_HINT =
 
 /** What to do by hand when persist_config cannot. */
 export const MANUAL_STEPS =
-  "Tasker > menu > Data > Restore > User Local Backup > tasker-mcp-live > OK, then press Back";
+  "Tasker > menu > Data > Restore > User Local Backup > tasker-mcp-live > OK, then tap the checkmark in the toolbar (or press Back)";
 
 /** File name (without .xml) the phone project's /backup writes, as the Restore picker lists it. */
 export const LIVE_BACKUP_NAME = "tasker-mcp-live";
@@ -46,7 +49,7 @@ export interface PersistTiming {
   settleMs: number;
   /** How long each GUI step may take to show its screen. */
   stepTimeoutMs: number;
-  /** How long to look for Tasker's save lines in logcat. */
+  /** How long to look for a failed save in logcat. */
   logTimeoutMs: number;
   /** How long to wait for /ping and a readable /backup afterwards. */
   restartTimeoutMs: number;
@@ -63,7 +66,7 @@ export const persistDefaults: PersistTiming = {
   pollMs: 500,
   settleMs: 400,
   stepTimeoutMs: 15_000,
-  logTimeoutMs: 6_000,
+  logTimeoutMs: 2_000,
   restartTimeoutMs: CONFIG_RESTART_TIMEOUT_MS,
   pingIntervalMs: 500,
 };
@@ -71,7 +74,6 @@ export const persistDefaults: PersistTiming = {
 export interface PersistOutcome {
   persisted: true;
   durationMs: number;
-  warnings: string[];
 }
 
 /**
@@ -93,7 +95,7 @@ function msg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-/** Drive the editor through Data > Restore > tasker-mcp-live and save on Back. */
+/** Drive the editor through Data > Restore > tasker-mcp-live and save with Apply. */
 async function restoreInEditor(ui: UiDriver, t: PersistTiming): Promise<void> {
   const nag = (nodes: UiNode[]): Promise<boolean> => ui.dismissNag(nodes);
   await ui.shell("am", "start", "-n", TASKER_ACTIVITY, "-f", CLEAR_TASK_FLAGS);
@@ -113,9 +115,10 @@ async function restoreInEditor(ui: UiDriver, t: PersistTiming): Promise<void> {
     nodes.find((n) => n.id === "android:id/button1") ?? nodes.find((n) => n.text === "OK");
   if (okBtn === undefined) throw new Error("the restore confirmation has no OK button");
   await ui.tapNode(okBtn);
-  // The editor marks itself dirty after a restore and offers Apply; without it Back saves nothing.
-  await ui.waitFor("desc:Apply", t.stepTimeoutMs);
-  await ui.key("BACK");
+  // The editor marks itself dirty after a restore and offers Apply; without it nothing is saved.
+  await ui.tapNode(await ui.waitFor("desc:Apply", t.stepTimeoutMs));
+  // Saved: the editor is clean again and takes the checkmark away.
+  await ui.waitGone("desc:Apply", t.stepTimeoutMs);
   await ui.key("HOME");
 }
 
@@ -147,7 +150,7 @@ async function waitForSaveLog(ui: UiDriver, since: string, t: PersistTiming): Pr
     try {
       state = classifySaveLog(await ui.shell("logcat", "-d", "-v", "brief", "-T", since));
     } catch {
-      // logcat is a confirmation only; the /backup check below still runs.
+      // logcat is a second opinion only; the /backup check below still runs.
     }
     if (state !== "unknown" || t.now() >= end) return state;
     await t.sleep(t.pollMs);
@@ -232,21 +235,9 @@ export async function persistConfig(
       await bailOut(ui);
       throw new ToolError(`persist_config could not drive Tasker's editor: ${msg(e)}`, manual(""));
     }
-    const warnings: string[] = [];
-    const save = await waitForSaveLog(ui, since, t);
-    if (save === "failed") {
+    // The checkmark going away already confirmed the save; the log can only add a failure.
+    if ((await waitForSaveLog(ui, since, t)) === "failed") {
       throw new ToolError("Tasker reported that saving its configuration failed", manual(""));
-    }
-    if (save === "not-dirty") {
-      throw new ToolError(
-        "Tasker left the editor without saving (the restore did not mark it changed)",
-        manual(""),
-      );
-    }
-    if (save === "unknown") {
-      warnings.push(
-        "Tasker's save was not confirmed in logcat; the configuration was re-read instead",
-      );
     }
     const client = await ctx.client();
     await client.waitForPing({ timeoutMs: t.restartTimeoutMs, intervalMs: t.pingIntervalMs });
@@ -263,7 +254,7 @@ export async function persistConfig(
         `restore_snapshot {"id": "${info.id}", "mode": "config"} puts the previous configuration back (it needs config imports allowed)`,
       );
     }
-    return { persisted: true, durationMs: t.now() - start, warnings };
+    return { persisted: true, durationMs: t.now() - start };
   });
 }
 
@@ -275,7 +266,7 @@ export const register: RegisterTools = (server, ctx) => {
       description:
         "Save Tasker's running configuration to disk so changes survive a Tasker restart or reboot. " +
         "Tasker only writes its configuration when its own editor saves, so every change made through tasker-mcp is live but unsaved until this runs (and saving in the editor first discards it). " +
-        "It drives Tasker's editor over adb (Data > Restore > tasker-mcp-live, then Back to save), then re-reads the configuration to check it. " +
+        "It drives Tasker's editor over adb (Data > Restore > tasker-mcp-live, then the Apply checkmark to save), then re-reads the configuration to check it. " +
         "Needs adb (with TASKER_URL set, also TASKER_ADB_SERIAL) and an unlocked, awake screen; takes about 25 seconds. It works under a write allow list too. Call it once after a batch of changes. " +
         "Example: persist_config {}",
       inputSchema: {},
@@ -288,11 +279,7 @@ export const register: RegisterTools = (server, ctx) => {
     },
     handler(async () => {
       const r = await persistConfig(ctx);
-      return ok(
-        r.warnings.length > 0
-          ? { persisted: true, durationMs: r.durationMs, warnings: r.warnings }
-          : { persisted: true, durationMs: r.durationMs },
-      );
+      return ok({ persisted: true, durationMs: r.durationMs });
     }),
   );
 };
