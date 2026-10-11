@@ -323,6 +323,9 @@ npm run typecheck
 `scripts/device/` holds the emulator drivers (`import-project.mjs`,
 `add-actions.mjs`, `ui.mjs`); they default `ANDROID_SERIAL` to the emulator. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
+`setup-emulator.mjs <Tasker.apk>` rebuilds an emulator target in one go; start the
+emulator with `-no-snapshot`, or a restart rolls back to an old snapshot and
+loses the Tasker install.
 
 ## Releasing
 

@@ -19,8 +19,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function openMain() {
   adb("shell", "am", "start", "-n", "net.dinglisch.android.taskerm/.Tasker");
   await sleep(2500);
-  await dismiss();
-  await waitFor("text=TASKS", 15);
+  // Nag dialogs can appear several seconds after the main screen does, one
+  // after another, so keep dismissing until the tab bar is what is showing.
+  for (let i = 0; i < 8; i++) {
+    await dismiss();
+    if (find("text=TASKS")[0]) return;
+    await sleep(1000);
+  }
+  await waitFor("text=TASKS", 5);
 }
 
 async function projectTab(name) {

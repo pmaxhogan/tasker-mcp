@@ -33,8 +33,23 @@ export function adb(...args) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function dump() {
-  adb("shell", "uiautomator", "dump", "/sdcard/ui.xml");
-  const xml = adb("shell", "cat", "/sdcard/ui.xml");
+  // uiautomator fails ("could not get idle state", "null root node") while the
+  // screen is still changing; a retry a moment later succeeds. Some of those
+  // failures still exit 0, so the old file is removed first and a missing or
+  // empty result counts as a failure instead of being read as the new screen.
+  let xml;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      adb("shell", "rm", "-f", "/sdcard/ui.xml");
+      adb("shell", "uiautomator", "dump", "/sdcard/ui.xml");
+      xml = adb("shell", "cat", "/sdcard/ui.xml");
+      if (xml.includes("<node")) break;
+      throw new Error("uiautomator dump wrote no nodes");
+    } catch (e) {
+      if (attempt >= 4) throw e;
+      adb("shell", "sleep", "1");
+    }
+  }
   const nodes = [];
   const re = /<node\b([^>]*?)\/?>/g;
   let m;
