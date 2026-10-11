@@ -13,12 +13,12 @@ and commit both. A unit test fails if the committed XML is stale.
 
 ## What is in it
 
-| Object                    | Purpose                                                                                                                                                                                                                                                           |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Profile `TaskerMCP HTTP`  | HTTP Request event (code 2089), port 1821, method and path empty (matches every request), entry task `TaskerMCP.Dispatch`.                                                                                                                                        |
-| Task `TaskerMCP.Dispatch` | Authenticates, routes, runs the needed Tasker actions, sends the HTTP Response. Collision handling "run both", so a long `/run` does not block other requests.                                                                                                    |
-| Task `TaskerMCP.Setup`    | Generates a 64 hex character token from two `GenerateUUID()` calls (Java `UUID.randomUUID`, SecureRandom), stores it in `%TaskerMCP_Token`, and flashes it. On an emulator (device model `sdk_*`) it also writes `/sdcard/Download/tasker-mcp-token.txt` for adb. |
-| Task `TaskerMCP.Debug`    | `Perform Task` it with `%par1` = a message to append it to the debug channel that `run_task` returns with `debug: true`.                                                                                                                                          |
+| Object                    | Purpose                                                                                                                                                                                                                                                                                                          |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Profile `TaskerMCP HTTP`  | HTTP Request event (code 2089), port 1821, method and path empty (matches every request), entry task `TaskerMCP.Dispatch`.                                                                                                                                                                                       |
+| Task `TaskerMCP.Dispatch` | Authenticates, routes, runs the needed Tasker actions, sends the HTTP Response. Collision handling "run both", so a long `/run` does not block other requests.                                                                                                                                                   |
+| Task `TaskerMCP.Setup`    | Generates a 64 hex character token from two `GenerateUUID()` calls (Java `UUID.randomUUID`, SecureRandom), stores it in `%TaskerMCP_Token`, copies it to the clipboard (marked sensitive), and flashes it. On an emulator (device model `sdk_*`) it also writes `/sdcard/Download/tasker-mcp-token.txt` for adb. |
+| Task `TaskerMCP.Debug`    | `Perform Task` it with `%par1` = a message to append it to the debug channel that `run_task` returns with `debug: true`.                                                                                                                                                                                         |
 
 ## Installing
 
@@ -27,7 +27,7 @@ and commit both. A unit test fails if the committed XML is stale.
 2. In Tasker, long-press the project tab bar at the bottom > **Import
    Project** > pick the file.
 3. Run the `TaskerMCP.Setup` task once (tap it, then the play button). It
-   flashes the token; also find it in the VARS tab as `%TaskerMCP_Token`, or
+   flashes the token and copies it to the clipboard; it is also in the VARS tab as `%TaskerMCP_Token`, or
    on an emulator with `adb shell cat /sdcard/Download/tasker-mcp-token.txt`.
 4. Make sure Tasker is enabled and the `TaskerMCP HTTP` profile is on.
 

@@ -888,6 +888,21 @@ try {
 			<Int sr="arg3" val="45"/>
 		</Action>
 		<Action sr="act5" ve="7">
+			<code>105</code>
+			<se>false</se>
+			<Str sr="arg0" ve="3">%TaskerMCP_Token</Str>
+			<Int sr="arg1" val="0"/>
+			<Str sr="arg2" ve="3"/>
+			<Int sr="arg3" val="1"/>
+			<ConditionList sr="if">
+				<Condition sr="c0" ve="3">
+					<lhs>%par1</lhs>
+					<op>1</op>
+					<rhs>quiet</rhs>
+				</Condition>
+			</ConditionList>
+		</Action>
+		<Action sr="act6" ve="7">
 			<code>548</code>
 			<Str sr="arg0" ve="3">TaskerMCP token: %TaskerMCP_Token</Str>
 			<Int sr="arg1" val="1"/>
@@ -913,7 +928,7 @@ try {
 				</Condition>
 			</ConditionList>
 		</Action>
-		<Action sr="act6" ve="7">
+		<Action sr="act7" ve="7">
 			<code>126</code>
 			<Str sr="arg0" ve="3">%TaskerMCP_Token</Str>
 			<Int sr="arg1" val="1"/>

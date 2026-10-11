@@ -183,6 +183,16 @@ const A = {
       str(15),
     ],
   }),
+  /**
+   * Set Clipboard (layout from the dceluis export): text, Add off, no image,
+   * Is Sensitive Data on so Android keeps it out of the clipboard preview.
+   */
+  setClipboard: (text: string, condition?: ConditionJson): ActionJson => ({
+    code: 105,
+    continueOnError: true,
+    ...(condition ? { condition: { conditions: [condition] } } : {}),
+    args: [str(0, text), int(1, 0), str(2), int(3, 1)],
+  }),
   returnValue: (value: string): ActionJson => ({
     code: 126,
     args: [str(0, value), int(1, 1), int(2, 0), int(3, 0), str(4)],
@@ -262,6 +272,9 @@ function setupActions(): ActionJson[] {
     A.generateUuid(),
     A.variableSet("%mcp_uuid2", "%uuid"),
     A.javascriptlet(js("setup.js")),
+    // A manual run also copies the token, so it can be pasted instead of
+    // retyped; a quiet run (POST /token/rotate) returns it over HTTP instead.
+    A.setClipboard("%TaskerMCP_Token", cond("%par1", NEQ, "quiet")),
     A.flash("TaskerMCP token: %TaskerMCP_Token", cond("%par1", NEQ, "quiet")),
     A.returnValue("%TaskerMCP_Token"),
   ];
