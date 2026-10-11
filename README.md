@@ -329,26 +329,39 @@ npm run typecheck
 `publish.yml` runs on every push to `main` and publishes a patch release. The
 version is computed from the registry (latest published patch + 1, never below
 the `major.minor.0` floor in `package.json`) and is not committed back. The job
-installs with `--ignore-scripts` and publishes with provenance. It is armed only
-when npm auth exists; otherwise it runs `npm publish --dry-run` and skips the
-tag. Set up one of:
+installs with `--ignore-scripts` and no dependency cache, and npm attaches
+provenance.
 
-**Option A: NPM_TOKEN secret**
+Auth is npm trusted publishing (OIDC) only; no token is stored. npm is retiring
+direct publishes from 2FA-bypass tokens: they will only be able to stage a
+release that a human then approves with 2FA
+([changelog](https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/)).
+Trusted publishing can still publish directly, provided the trusted publisher
+is allowed to run `npm publish`. The job always runs `npm publish`, so a
+stage-only publisher fails the job instead of queueing a release for approval.
 
-1. On npmjs.com, create a granular access token with publish rights for
-   `@pmaxhogan/tasker-mcp` (or for the `@pmaxhogan` scope).
-2. In the GitHub repo: Settings > Secrets and variables > Actions > New
-   repository secret, name `NPM_TOKEN`, paste the token.
-3. Push to `main`.
+Until the repository variable `NPM_TRUSTED_PUBLISHING` is `true`, the job runs
+`npm publish --dry-run` and skips the tag. One-time setup:
 
-**Option B: trusted publishing (OIDC)**
+1. The package must exist before a trusted publisher can be attached. Publish
+   the first version by hand: `npm login`, `npm ci`, `npm run build`,
+   `npm publish --access public` (npm asks for 2FA once).
+2. Attach the trusted publisher, allowing direct publishes (2FA once):
 
-1. On npmjs.com, open the package settings, find Trusted Publisher, choose
-   GitHub Actions, and enter owner `pmaxhogan`, repository `tasker-mcp`,
-   workflow `publish.yml`.
-2. In the GitHub repo: Settings > Secrets and variables > Actions > Variables >
-   New repository variable, name `NPM_TRUSTED_PUBLISHING`, value `true`.
-3. Push to `main`.
+   ```bash
+   npm trust github @pmaxhogan/tasker-mcp --repo pmaxhogan/tasker-mcp      --file publish.yml --allow-publish
+   ```
+
+   The same thing on npmjs.com: package Settings > Trusted publishing > GitHub
+   Actions, owner `pmaxhogan`, repository `tasker-mcp`, workflow `publish.yml`,
+   and tick the option that allows `npm publish`. New configurations are
+   stage-only unless you do.
+3. Arm the job: `gh variable set NPM_TRUSTED_PUBLISHING --body true`.
+4. Run the workflow straight away (Actions > Publish > Run workflow). A new
+   trusted publisher expires unless it completes a publish within 2 days.
+5. Optional hardening once that works: package Settings > Publishing access >
+   "Require two-factor authentication and disallow tokens". Trusted publishing
+   keeps working.
 
 ## Credits
 
