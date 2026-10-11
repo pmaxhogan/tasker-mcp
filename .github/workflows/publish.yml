@@ -4,10 +4,16 @@ name: Publish
 # the registry, never committed back: package.json holds major.minor.0 as the
 # floor, and the next version is max(latest published patch + 1, floor).
 #
-# The real publish is armed only when npm auth exists: either an NPM_TOKEN
-# repository secret, or trusted publishing (OIDC) configured on npmjs.com and
-# the repository variable NPM_TRUSTED_PUBLISHING set to "true". Without
-# either, the job runs `npm publish --dry-run` and skips the tag.
+# Auth is npm trusted publishing (OIDC) only: no token is stored anywhere.
+# npm is retiring direct publishes from 2FA-bypass tokens (they will only be
+# able to stage a release for a human to approve), so a token would turn every
+# release into a manual step. The trusted publisher on npmjs.com must allow
+# `npm publish`; a stage-only publisher makes this job fail, by design, rather
+# than queue a release that waits for approval.
+#
+# The real publish is armed when the repository variable
+# NPM_TRUSTED_PUBLISHING is "true". Without it, the job runs
+# `npm publish --dry-run` and skips the tag.
 on:
   push:
     branches: [main]
@@ -30,23 +36,23 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "26"
-          cache: npm
+          # No dependency cache in the release job: a poisoned cache entry
+          # would be published.
           registry-url: https://registry.npmjs.org
       # No install scripts in the job that holds the npm credentials.
       - run: npm ci --ignore-scripts
       - run: npm run build
 
-      - name: Decide whether npm auth is configured
+      - name: Decide whether trusted publishing is configured
         id: auth
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           TRUSTED: ${{ vars.NPM_TRUSTED_PUBLISHING }}
         run: |
-          if [ -n "$NPM_TOKEN" ] || [ "$TRUSTED" = "true" ]; then
+          if [ "$TRUSTED" = "true" ]; then
             echo "armed=true" >> "$GITHUB_OUTPUT"
           else
             echo "armed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::npm auth not configured; running publish --dry-run only"
+            echo "::notice::NPM_TRUSTED_PUBLISHING is not true; running publish --dry-run only"
           fi
 
       - name: Compute the next version
@@ -64,11 +70,12 @@ jobs:
         if: steps.auth.outputs.armed != 'true'
         run: npm publish --dry-run --access public
 
+      # npm exchanges the job's OIDC identity for a short-lived publish token
+      # and attaches provenance itself. Always `npm publish`, never
+      # `npm stage publish`: releases must not wait for a human.
       - name: Publish
         if: steps.auth.outputs.armed == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public
+        run: npm publish --access public
 
       - name: Tag the release
         if: steps.auth.outputs.armed == 'true'
