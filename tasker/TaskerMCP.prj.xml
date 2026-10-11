@@ -102,7 +102,33 @@ function authorized(token) {
 
 var GLOBAL_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 
+// Tasker's HTTP server listens on every interface and has no bind-address
+// setting, so loopback-only is enforced here: a caller that is not localhost
+// (adb forward arrives as 127.0.0.1) is refused before the token is checked,
+// unless the owner sets %TaskerMCP_AllowRemote to 1.
+var LOOPBACK = /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1|localhost)$/i;
+
+function remoteAddress() {
+  var ip = readLocal(function () {
+    return http_request_ip_address_v4;
+  });
+  if (!ip)
+    ip = readLocal(function () {
+      return local("http_request_ip_address_v4");
+    });
+  return ip;
+}
+
 function main() {
+  var ip = remoteAddress();
+  var allowRemote = String(global("TaskerMCP_AllowRemote") || "") === "1";
+  if (!allowRemote &amp;&amp; !LOOPBACK.test(ip))
+    return reply(403, {
+      error:
+        "remote access is disabled (caller " +
+        (ip || "unknown") +
+        "): use adb forward, or set %TaskerMCP_AllowRemote to 1 on the phone",
+    });
   var token = readLocal(function () {
     return global("TaskerMCP_Token");
   });
@@ -330,7 +356,7 @@ try {
 		<Action sr="act2" ve="7">
 			<code>322</code>
 			<se>false</se>
-			<Str sr="arg0" ve="3">/sdcard/Tasker/tasker-mcp/backup.xml</Str>
+			<Str sr="arg0" ve="3">/sdcard/Tasker/configs/user/tasker-mcp-live.xml</Str>
 			<Str sr="arg1" ve="3"/>
 			<Int sr="arg2" val="0"/>
 		</Action>
@@ -652,7 +678,7 @@ function finish() {
   switch (route) {
     case "backup":
       if (failed()) return respond(500, { error: "Data Backup failed: " + failure() });
-      var xml = readFile("/sdcard/Tasker/tasker-mcp/backup.xml");
+      var xml = readFile("/sdcard/Tasker/configs/user/tasker-mcp-live.xml");
       if (!xml) return respond(500, { error: "backup file was empty" });
       ctype = "text/xml";
       return respond(200, xml);

@@ -30,6 +30,7 @@
     "bin/",
     "dist/",
     "data/",
+    "!data/vendor/",
     "tasker/",
     "README.md",
     "LICENSE",

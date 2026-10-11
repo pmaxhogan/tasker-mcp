@@ -59,6 +59,7 @@ export default tseslint.config(
         writeFile: "readonly",
         http_request_body: "readonly",
         http_request_headers: "readonly",
+        http_request_ip_address_v4: "readonly",
         http_request_method: "readonly",
         http_request_path: "readonly",
       },

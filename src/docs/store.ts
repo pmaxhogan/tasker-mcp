@@ -283,6 +283,8 @@ export class DocsStore {
   }
 
   private snippetFor(hit: SearchHit, qTerms: string[], query: string): string {
+    // The index is downloaded data: never let a slug like "../x" reach the filesystem.
+    if (!isSafeSlug(hit.slug)) return hit.title;
     let text: string;
     try {
       text = readFileSync(this.pagePath(hit.slug), "utf8");

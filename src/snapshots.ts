@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export interface SnapshotInfo {
@@ -36,13 +36,10 @@ function stamp(d: Date): string {
   return d.toISOString().replace(/[-:.]/g, "");
 }
 
-async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch {
-    return false;
-  }
+const MAX_SUFFIX = 1000;
+
+function isEexist(err: unknown): boolean {
+  return (err as NodeJS.ErrnoException).code === "EEXIST";
 }
 
 export class SnapshotStore {
@@ -61,22 +58,39 @@ export class SnapshotStore {
     const now = this.now();
     const s = slug(meta.label);
     const base = s ? `${stamp(now)}-${s}` : stamp(now);
-    let id = base;
-    for (let n = 2; await exists(join(this.dir, `${id}.json`)); n++) {
-      id = `${base}~${n}`;
+    // Claim an id with exclusive creates ("wx") so two concurrent saves in the
+    // same millisecond never overwrite each other: the loser moves on to ~N.
+    for (let n = 1; n <= MAX_SUFFIX; n++) {
+      const id = n === 1 ? base : `${base}~${n}`;
+      const info: SnapshotInfo = {
+        id,
+        label: meta.label,
+        createdAt: now.toISOString(),
+        bytes: Buffer.byteLength(xml, "utf8"),
+      };
+      if (meta.tool !== undefined) info.tool = meta.tool;
+      if (meta.device !== undefined) info.device = meta.device;
+      const xmlPath = join(this.dir, `${id}.xml`);
+      try {
+        await writeFile(xmlPath, xml, { encoding: "utf8", flag: "wx" });
+      } catch (err) {
+        if (isEexist(err)) continue;
+        throw err;
+      }
+      try {
+        await writeFile(join(this.dir, `${id}.json`), JSON.stringify(info, null, 2), {
+          encoding: "utf8",
+          flag: "wx",
+        });
+      } catch (err) {
+        await rm(xmlPath, { force: true });
+        if (isEexist(err)) continue;
+        throw err;
+      }
+      await this.prune();
+      return info;
     }
-    const info: SnapshotInfo = {
-      id,
-      label: meta.label,
-      createdAt: now.toISOString(),
-      bytes: Buffer.byteLength(xml, "utf8"),
-    };
-    if (meta.tool !== undefined) info.tool = meta.tool;
-    if (meta.device !== undefined) info.device = meta.device;
-    await writeFile(join(this.dir, `${id}.xml`), xml, "utf8");
-    await writeFile(join(this.dir, `${id}.json`), JSON.stringify(info, null, 2), "utf8");
-    await this.prune();
-    return info;
+    throw new Error(`could not find a free snapshot id for ${base} in ${this.dir}`);
   }
 
   async list(): Promise<SnapshotInfo[]> {
@@ -90,9 +104,14 @@ export class SnapshotStore {
     const out: SnapshotInfo[] = [];
     for (const name of names) {
       if (!name.endsWith(".json")) continue;
+      // The id comes from the filename, never from file content: prune deletes by it.
+      const id = name.slice(0, -".json".length);
+      if (!ID_RE.test(id)) continue;
       try {
         const info = JSON.parse(await readFile(join(this.dir, name), "utf8")) as SnapshotInfo;
-        if (typeof info.id === "string" && typeof info.createdAt === "string") out.push(info);
+        if (info !== null && typeof info === "object" && typeof info.createdAt === "string") {
+          out.push({ ...info, id });
+        }
       } catch {
         // Skip unreadable or foreign files.
       }
@@ -107,7 +126,7 @@ export class SnapshotStore {
       try {
         const xml = await readFile(join(this.dir, `${id}.xml`), "utf8");
         const raw = await readFile(join(this.dir, `${id}.json`), "utf8");
-        return { info: JSON.parse(raw) as SnapshotInfo, xml };
+        return { info: { ...(JSON.parse(raw) as SnapshotInfo), id }, xml };
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
       }
