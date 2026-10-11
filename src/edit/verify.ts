@@ -10,7 +10,13 @@
  * likewise accepted.
  */
 
-import { intDefault, type SpecLookup } from "../model/convert.ts";
+import {
+  boolDefault,
+  intDefault,
+  normalizeRaw,
+  rawActionResidue,
+  type SpecLookup,
+} from "../model/convert.ts";
 import { TaskerDoc } from "../model/document.ts";
 import type { ActionJson, ArgJson, ConditionListJson, TaskJson } from "../model/types.ts";
 import type { ArgSpec } from "../spec/types.ts";
@@ -20,12 +26,15 @@ export interface TaskDiff {
   differences: string[];
 }
 
-/** Collapse inter-tag whitespace and drop the root `sr` so raw XML compares by content. */
-function normRaw(raw: string): string {
-  return raw
-    .trim()
-    .replace(/>\s+</g, "><")
-    .replace(/^(<[A-Za-z][\w.-]*)\s+sr="[^"]*"/, "$1");
+const normRaw = normalizeRaw;
+
+/** Residue of a raw action, or the normalized text when it does not parse. */
+function residue(raw: string): string {
+  try {
+    return rawActionResidue(raw);
+  } catch {
+    return normRaw(raw);
+  }
 }
 
 /** Comparable form of an arg value: Bool and numeric Int collapse to the same string. */
@@ -58,12 +67,12 @@ export function isDefaultArg(a: ArgJson, spec?: ArgSpec): boolean {
       return a.value === "";
     case "Int": {
       const v = String(a.value);
-      if (spec?.type === 3) return v === (spec.spec === "true" ? "1" : "0");
+      if (spec?.type === 3) return v === (boolDefault(spec) ? "1" : "0");
       const d = spec === undefined ? 0 : intDefault(spec);
       return v === String(d);
     }
     case "Bool":
-      return a.value === (spec?.spec === "true");
+      return a.value === (spec !== undefined && boolDefault(spec));
     case "Raw": {
       if (a.tag === "Bundle") return true;
       // Empty App / Img: self-closing with no content.
@@ -109,9 +118,11 @@ function diffAction(
   if (condKey(e.condition) !== condKey(a.condition)) {
     out.push(`${at}: condition differs`);
   }
-  if (e.raw !== undefined && a.raw !== undefined) {
-    if (normRaw(e.raw) !== normRaw(a.raw)) out.push(`${at}: raw XML differs`);
-    return;
+  // Raw actions: compare only what the structured fields do not cover, so a
+  // structured edit applied onto the raw XML (enabled, args, ...) is not
+  // reported twice, and arg changes are still compared below.
+  if (e.raw !== undefined && a.raw !== undefined && residue(e.raw) !== residue(a.raw)) {
+    out.push(`${at}: raw XML differs outside the structured fields`);
   }
   const spec = lookup?.(e.code);
   const ids = new Set([...e.args.map((x) => x.id), ...a.args.map((x) => x.id)]);

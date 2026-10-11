@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { WritePolicy } from "./tools/context.ts";
 
 export interface Config {
   url: string | undefined;
@@ -10,6 +11,10 @@ export interface Config {
   timeoutMs: number;
   adbPath: string;
   autoForward: boolean;
+  /** Write scope for mutating tools (TASKER_WRITE_ALLOW, TASKER_ALLOW_CONFIG_IMPORT). */
+  policy: WritePolicy;
+  /** Run persist_config after every mutating tool (TASKER_AUTO_PERSIST, --auto-persist). */
+  autoPersist: boolean;
 }
 
 export type ConfigAction = "run" | "help" | "version";
@@ -35,13 +40,43 @@ Options:
   --home <dir>          State directory (env TASKER_MCP_HOME, default ~/.tasker-mcp)
   --timeout-ms <ms>     Request timeout (env TASKER_TIMEOUT_MS, default 30000)
   --adb <path>          adb executable (env TASKER_ADB, default "adb")
+  --write-allow <list>  Comma separated name prefixes; mutating tools only touch
+                        tasks, profiles, projects, scenes and globals whose name
+                        starts with one of them (env TASKER_WRITE_ALLOW). Use on
+                        a real phone, e.g. "TaskerMCP.,MyTest.".
+  --allow-config-import Allow whole-configuration imports (delete, rename,
+                        profile and project edits, restore_snapshot). Env
+                        TASKER_ALLOW_CONFIG_IMPORT=true|false. Default: allowed,
+                        unless --write-allow is set.
+  --no-config-import    Forbid whole-configuration imports.
+  --auto-persist        After every change, save Tasker's running configuration
+                        to disk (persist_config; drives Tasker's editor over
+                        adb). Env TASKER_AUTO_PERSIST=true|false. Default: off;
+                        changes are then live only until persist_config runs.
+  --no-auto-persist     Turn auto-persist off.
   --help                Show this help
   --version             Show the version
 
 Command line flags override environment variables.
 `;
 
-const VALUE_FLAGS = new Set(["url", "token", "token-file", "serial", "home", "timeout-ms", "adb"]);
+const VALUE_FLAGS = new Set([
+  "url",
+  "token",
+  "token-file",
+  "serial",
+  "home",
+  "timeout-ms",
+  "adb",
+  "write-allow",
+]);
+/** Flags without a value, stored as "true" / "false". */
+const SWITCH_FLAGS: Record<string, [string, string]> = {
+  "allow-config-import": ["config-import", "true"],
+  "no-config-import": ["config-import", "false"],
+  "auto-persist": ["auto-persist", "true"],
+  "no-auto-persist": ["auto-persist", "false"],
+};
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -75,6 +110,11 @@ function parseArgv(argv: string[]): ParsedArgv {
     }
     const eq = arg.indexOf("=");
     const name = eq === -1 ? arg.slice(2) : arg.slice(2, eq);
+    const sw = SWITCH_FLAGS[name];
+    if (sw !== undefined && eq === -1) {
+      flags.set(sw[0], sw[1]);
+      continue;
+    }
     if (!VALUE_FLAGS.has(name)) {
       throw new ConfigError(`Unknown option "--${name}". Run with --help for usage.`);
     }
@@ -111,6 +151,55 @@ function nonEmpty(v: string | undefined): string | undefined {
   return v === undefined || v === "" ? undefined : v;
 }
 
+/** The permissive default: every name writable, config imports allowed. */
+export const DEFAULT_POLICY: WritePolicy = { allowConfigImport: true };
+
+function parseBool(raw: string, what: string): boolean {
+  const v = raw.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(v)) return true;
+  if (["0", "false", "no", "off"].includes(v)) return false;
+  throw new ConfigError(`Invalid ${what} "${raw}": use true or false.`);
+}
+
+/**
+ * Write policy from --write-allow / TASKER_WRITE_ALLOW and the config-import
+ * switches / TASKER_ALLOW_CONFIG_IMPORT. Config imports default to allowed,
+ * except when an allow list is set: then they must be enabled explicitly.
+ */
+export function loadPolicy(flags: Map<string, string>, env: NodeJS.ProcessEnv): WritePolicy {
+  const rawAllow = nonEmpty(flags.get("write-allow")) ?? nonEmpty(env["TASKER_WRITE_ALLOW"]);
+  const prefixes =
+    rawAllow === undefined
+      ? undefined
+      : rawAllow
+          .split(",")
+          .map((p) => p.trim())
+          .filter((p) => p !== "");
+  if (prefixes !== undefined && prefixes.length === 0) {
+    throw new ConfigError(
+      `Invalid write allow list "${rawAllow}": give one or more comma separated name prefixes.`,
+    );
+  }
+  const flagImport = flags.get("config-import");
+  const envImport = nonEmpty(env["TASKER_ALLOW_CONFIG_IMPORT"]);
+  let allowConfigImport = prefixes === undefined;
+  if (flagImport !== undefined) allowConfigImport = flagImport === "true";
+  else if (envImport !== undefined) {
+    allowConfigImport = parseBool(envImport, "TASKER_ALLOW_CONFIG_IMPORT");
+  }
+  return prefixes === undefined
+    ? { allowConfigImport }
+    : { allowPrefixes: prefixes, allowConfigImport };
+}
+
+/** --auto-persist / --no-auto-persist, else TASKER_AUTO_PERSIST, else false. */
+export function loadAutoPersist(flags: Map<string, string>, env: NodeJS.ProcessEnv): boolean {
+  const flag = flags.get("auto-persist");
+  if (flag !== undefined) return flag === "true";
+  const raw = nonEmpty(env["TASKER_AUTO_PERSIST"]);
+  return raw === undefined ? false : parseBool(raw, "TASKER_AUTO_PERSIST");
+}
+
 export function loadConfig(
   argv: string[],
   env: NodeJS.ProcessEnv,
@@ -133,6 +222,8 @@ export function loadConfig(
         timeoutMs: DEFAULT_TIMEOUT_MS,
         adbPath: "adb",
         autoForward: true,
+        policy: { ...DEFAULT_POLICY },
+        autoPersist: false,
       },
     };
   }
@@ -181,6 +272,8 @@ export function loadConfig(
       timeoutMs,
       adbPath: pick("adb", "TASKER_ADB") ?? "adb",
       autoForward: url === undefined,
+      policy: loadPolicy(flags, env),
+      autoPersist: loadAutoPersist(flags, env),
     },
   };
 }

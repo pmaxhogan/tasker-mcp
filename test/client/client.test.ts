@@ -400,6 +400,41 @@ describe("token redaction", () => {
     expect(stderr.join("")).not.toContain(TOKEN);
   });
 
+  it("rotateToken switches to the new token and redacts both old and new", async () => {
+    const NEW = "brand-new-token-xyz";
+    let n = 0;
+    const { client, calls } = makeClient(() =>
+      n++ === 0 ? json({ token: NEW }) : new Response(`old ${TOKEN} new ${NEW}`),
+    );
+    expect(await client.rotateToken()).toEqual({ token: NEW });
+    expect(await client.backup()).toBe("old [redacted] new [redacted]");
+    expect(calls[0]!.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(calls[1]!.headers.Authorization).toBe(`Bearer ${NEW}`);
+  });
+
+  it("keeps the old token when the rotation answer has no token", async () => {
+    const { client, calls } = makeClient(() => json({ ok: true }));
+    await client.rotateToken();
+    await client.ping();
+    expect(calls[1]!.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("setToken changes the bearer, redacts every token held, and allows an empty one", async () => {
+    const { client, calls } = makeClient(() => new Response(`a ${TOKEN} b other-token-1`));
+    client.setToken("other-token-1");
+    expect(await client.backup()).toBe("a [redacted] b [redacted]");
+    expect(calls[0]!.headers.Authorization).toBe("Bearer other-token-1");
+    client.setToken("");
+    expect(await client.backup()).toBe("a [redacted] b [redacted]");
+    expect(calls[1]!.headers.Authorization).toBe("Bearer ");
+  });
+
+  it("redacts a longer token that contains a shorter one as a whole", async () => {
+    const { client } = makeClient(() => new Response(`x ${TOKEN}-longer y`));
+    client.setToken(`${TOKEN}-longer`);
+    expect(await client.backup()).toBe("x [redacted] y");
+  });
+
   it("redacts the token from successful bodies too", async () => {
     const { client } = makeClient(() => new Response(`xml ${TOKEN}`));
     expect(await client.backup()).toBe("xml [redacted]");

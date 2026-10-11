@@ -332,7 +332,8 @@ describe("against the real spec table", () => {
         {
           code: 547,
           args: [
-            { id: 0, kind: "Str", value: "%x" },
+            // 3+ characters: Tasker rejects "%x" as a variable name.
+            { id: 0, kind: "Str", value: "%xyz" },
             { id: 1, kind: "Str", value: "1" },
             { id: 2, kind: "Int", value: 0 },
             { id: 3, kind: "Int", value: 0 },
@@ -341,7 +342,7 @@ describe("against the real spec table", () => {
             { id: 6, kind: "Int", value: 0 },
           ],
         },
-        { code: IF, args: [], condition: { conditions: [{ lhs: "%x", op: 12 }] } },
+        { code: IF, args: [], condition: { conditions: [{ lhs: "%xyz", op: 12 }] } },
         { code: 548, args: [{ id: 0, kind: "Str", value: "hi" }] },
         { code: END_IF, args: [] },
       ],
@@ -350,5 +351,39 @@ describe("against the real spec table", () => {
     expect(r.errors).toEqual([]);
     // Flash has Boolean args that were left out: warnings only.
     expect(r.warnings.every((w) => w.index === 2)).toBe(true);
+  });
+});
+
+describe("variable-name args", () => {
+  // The Tasker editor refuses "%xx"; an imported one is not a variable at run time
+  // (docs/conformance.md).
+  const spec = getSpec();
+  const vs = (name: string): TaskJson => ({
+    name: "T",
+    actions: [
+      {
+        code: 547,
+        args: [
+          { id: 0, kind: "Str", value: name },
+          { id: 1, kind: "Str", value: "1" },
+        ],
+      },
+    ],
+  });
+  const warned = (name: string): boolean =>
+    validateTask(vs(name), spec).warnings.some((w) => w.message.includes("variable name"));
+
+  it("warns about names Tasker rejects", () => {
+    expect(warned("%xy")).toBe(true);
+    expect(warned("%_abc")).toBe(true);
+    expect(warned("%abc_")).toBe(true);
+    expect(warned("%")).toBe(true);
+  });
+
+  it("accepts valid names, arrays and expressions", () => {
+    expect(warned("%xyz")).toBe(false);
+    expect(warned("%My_Var")).toBe(false);
+    expect(warned("%arr(2)")).toBe(false);
+    expect(warned("%%name")).toBe(false);
   });
 });

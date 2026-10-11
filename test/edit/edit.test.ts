@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { computeDepths, closesBlock, opensBlock } from "../../src/edit/blocks.ts";
-import { DEFAULT_TV, planReplaceTask } from "../../src/edit/plan.ts";
+import { BASE_PROJECT, DEFAULT_TV, planReplaceTask } from "../../src/edit/plan.ts";
 import { applyPatch, reindex } from "../../src/edit/splice.ts";
 import { diffTasks, findDuplicates, isDefaultArg } from "../../src/edit/verify.ts";
-import { taskToJson } from "../../src/model/convert.ts";
+import { actionToJson, taskFromJson, taskToJson } from "../../src/model/convert.ts";
 import { TaskerDoc } from "../../src/model/document.ts";
 import type { ActionJson, TaskJson } from "../../src/model/types.ts";
 import { childText, children, parseXml } from "../../src/xml/index.ts";
@@ -47,6 +47,58 @@ describe("planReplaceTask", () => {
     expect(j.actions).toHaveLength(3);
     expect(diffTasks(next, j, lookup).equal).toBe(true);
     expect(plan.warnings).toEqual([]);
+    expect(plan.targetProject).toBeUndefined();
+    expect(plan.renamedFrom).toBeUndefined();
+  });
+
+  it("asks for a move when an in-place replace names another project", () => {
+    const current = taskToJson(rho.taskByName("RhoOpenUrl")!, lookup, { project: "Rho" });
+    expect(planReplaceTask(rho, current, lookup, { now }).targetProject).toBeUndefined();
+    const plan = planReplaceTask(rho, { ...current, project: "Other" }, lookup, { now });
+    expect(plan.project).toBe("Rho");
+    expect(plan.targetProject).toBe("Other");
+    // A task no project lists: where it sits is unknown, so project stays unset.
+    const doc = TaskerDoc.parse(
+      '<TaskerData><Task sr="task4"><id>4</id><nme>Loose</nme></Task></TaskerData>',
+    );
+    const loose = planReplaceTask(doc, { name: "Loose", actions: [] }, lookup, { now });
+    expect(loose.isNew).toBe(false);
+    expect(loose.project).toBeUndefined();
+  });
+
+  it("renames: the old task is the base, the old one is reported for removal", () => {
+    const current = taskToJson(rho.taskByName("RhoOpenUrl")!, lookup, { project: "Rho" });
+    const next: TaskJson = { ...current, name: "RhoOpenLink" };
+    const plan = planReplaceTask(rho, next, lookup, { now, baseName: "RhoOpenUrl" });
+    expect(plan.isNew).toBe(false);
+    expect(plan.taskId).toBe(151);
+    expect(plan.renamedFrom).toEqual({ id: 151, name: "RhoOpenUrl" });
+    expect(plan.project).toBe("Base");
+    expect(plan.targetProject).toBe("Rho");
+    const t = new TaskerDoc(parseXml(plan.xml)).taskById(151)!;
+    expect(childText(t, "nme")).toBe("RhoOpenLink");
+    expect(childText(t, "cdate")).toBe("1770066138409");
+    // Without next.project the old task's project is the target.
+    const bare = planReplaceTask(rho, { name: "X1", actions: [] }, lookup, {
+      baseName: "RhoOpenUrl",
+    });
+    expect(bare.targetProject).toBe("Rho");
+  });
+
+  it("treats baseName equal to the name as an ordinary replace", () => {
+    const current = taskToJson(rho.taskByName("RhoOpenUrl")!, lookup);
+    const plan = planReplaceTask(rho, current, lookup, { now, baseName: "RhoOpenUrl" });
+    expect(plan.renamedFrom).toBeUndefined();
+    expect(plan.project).toBe("Rho");
+  });
+
+  it("refuses a rename from a missing task or onto another task's name", () => {
+    expect(() =>
+      planReplaceTask(rho, { name: "New", actions: [] }, lookup, { baseName: "Nope" }),
+    ).toThrow(/no task named "Nope"/);
+    expect(() =>
+      planReplaceTask(rho, { name: "RhoBack", actions: [] }, lookup, { baseName: "RhoOpenUrl" }),
+    ).toThrow(/already exists/);
   });
 
   it("new name gets a fresh id above every task and profile id", () => {
@@ -58,7 +110,10 @@ describe("planReplaceTask", () => {
     );
     expect(plan.isNew).toBe(true);
     expect(plan.taskId).toBe(182);
-    expect(plan.project).toBe("Elsewhere");
+    // Tasker drops every newly imported task into Base; the caller moves it.
+    expect(plan.project).toBe("Base");
+    expect(plan.targetProject).toBe("Elsewhere");
+    expect(plan.renamedFrom).toBeUndefined();
     expect(plan.xml).toContain('tv="6.6.20"');
     expect(children(plan.element, "Action")).toHaveLength(1);
     expect(plan.xml).not.toContain('sr="arg1"');
@@ -68,7 +123,10 @@ describe("planReplaceTask", () => {
     const empty = TaskerDoc.parse("<TaskerData/>");
     const plan = planReplaceTask(empty, { name: "A", actions: [] }, lookup, { now });
     expect(plan.xml).toContain(`tv="${DEFAULT_TV}"`);
-    expect(plan.project).toBeUndefined();
+    expect(plan.project).toBe(BASE_PROJECT);
+    expect(plan.targetProject).toBeUndefined();
+    const inBase = planReplaceTask(empty, { name: "A", project: "Base", actions: [] }, lookup);
+    expect(inBase.targetProject).toBeUndefined();
     expect(plan.taskId).toBe(1);
     expect(() => planReplaceTask(empty, { name: " ", actions: [] }, lookup)).toThrow(/name/);
   });
@@ -224,7 +282,8 @@ describe("diffTasks", () => {
     a0.continueOnError = false;
     a0.condition = { conditions: [{ lhs: "%a", op: 1, rhs: "1" }] };
     a0.args[1] = { id: 1, kind: "Str", value: "2" };
-    a0.args.push({ id: 6, kind: "Int", value: 1 });
+    // arg6 (Structure Output) defaults to on, so an explicit off is a difference.
+    a0.args.push({ id: 6, kind: "Int", value: 0 });
     a0.args = a0.args.filter((x) => x.id !== 0);
     changed.actions[1]!.raw = "<Action><code>6</code></Action>";
     const d = diffTasks(expected, changed, lookup);
@@ -240,9 +299,49 @@ describe("diffTasks", () => {
       "action 0: condition differs",
       'action 0: arg0 missing, expected Str "%x"',
       'action 0: arg1 expected Str "1", got Str "2"',
-      "action 0: arg6 unexpected Int 1",
-      "action 1: raw XML differs",
+      "action 0: arg6 unexpected Int 0",
+      "action 1: raw XML differs outside the structured fields",
     ]);
+  });
+
+  it("a structured edit on a raw action verifies equal against Tasker's re-export", () => {
+    const raw =
+      '<Action sr="act0" ve="7"><code>548</code><foo>x</foo><Str sr="arg0" ve="3">a</Str></Action>';
+    const original = actionToJson(parseXml(raw).root, lookup);
+    expect(original.raw).toBe(raw);
+    // The agent edits structured fields but sends the stale raw along.
+    const expected: TaskJson = {
+      name: "T",
+      actions: [{ ...original, enabled: false, args: [{ id: 0, kind: "Str", value: "b" }] }],
+    };
+    const el = taskFromJson(expected, lookup, { id: 1, fillDefaults: false, now });
+    const actual = taskToJson(el, lookup);
+    expect(actual.actions[0]!.raw).toContain("<on>false</on>");
+    expect(diffTasks(expected, actual, lookup)).toEqual({ equal: true, differences: [] });
+  });
+
+  it("compares args of raw actions and the raw XML outside the structured fields", () => {
+    const mk = (arg: string, extra: string): ActionJson =>
+      actionToJson(
+        parseXml(
+          `<Action sr="act0" ve="7"><code>548</code>${extra}<Str sr="arg0" ve="3">${arg}</Str></Action>`,
+        ).root,
+        lookup,
+      );
+    const d = diffTasks(
+      { name: "T", actions: [mk("a", "<foo>x</foo>")] },
+      { name: "T", actions: [mk("b", "<foo>y</foo>")] },
+      lookup,
+    );
+    expect(d.differences).toEqual([
+      "action 0: raw XML differs outside the structured fields",
+      'action 0: arg0 expected Str "a", got Str "b"',
+    ]);
+    // Unparseable raw on both sides falls back to a whitespace-normalized text compare.
+    const junk: ActionJson = { code: 5, args: [], raw: "not < xml" };
+    expect(diffTasks({ name: "T", actions: [junk] }, { name: "T", actions: [junk] }).equal).toBe(
+      true,
+    );
   });
 
   it("code mismatch and count mismatch", () => {
@@ -317,6 +416,9 @@ describe("diffTasks", () => {
     const trueSpec = { id: 0, name: "b", type: 3, isMandatory: true, spec: "true" };
     expect(isDefaultArg({ id: 0, kind: "Int", value: 1 }, trueSpec)).toBe(true);
     expect(isDefaultArg({ id: 0, kind: "Bool", value: true }, trueSpec)).toBe(true);
+    // "bosta" (Structure Output) is on in a new GUI action (docs/conformance.md).
+    expect(isDefaultArg({ id: 6, kind: "Int", value: 1 }, spec(6))).toBe(true);
+    expect(isDefaultArg({ id: 6, kind: "Int", value: 0 }, spec(6))).toBe(false);
   });
 });
 
