@@ -11,7 +11,10 @@ export interface Config {
   timeoutMs: number;
   adbPath: string;
   autoForward: boolean;
-  /** Write scope for mutating tools (TASKER_WRITE_ALLOW, TASKER_ALLOW_CONFIG_IMPORT). */
+  /**
+   * Write scope for mutating tools (TASKER_WRITE_ALLOW,
+   * TASKER_WRITE_ALLOW_PROJECTS, TASKER_ALLOW_CONFIG_IMPORT).
+   */
   policy: WritePolicy;
   /** Run persist_config after every mutating tool (TASKER_AUTO_PERSIST, --auto-persist). */
   autoPersist: boolean;
@@ -44,15 +47,23 @@ Options:
                         tasks, profiles, projects, scenes and globals whose name
                         starts with one of them (env TASKER_WRITE_ALLOW). Use on
                         a real phone, e.g. "TaskerMCP.,MyTest.".
+  --write-allow-projects <list>
+                        Comma separated project name prefixes; projects whose
+                        name starts with one, and every task, profile and scene
+                        in them, are writable too (env
+                        TASKER_WRITE_ALLOW_PROJECTS), e.g. "MCP.". Confines
+                        writes like --write-allow; the two lists add up.
   --allow-config-import Allow whole-configuration imports (delete, rename,
                         profile and project edits, restore_snapshot). Env
                         TASKER_ALLOW_CONFIG_IMPORT=true|false. Default: allowed,
-                        unless --write-allow is set.
+                        unless --write-allow or --write-allow-projects is set.
   --no-config-import    Forbid whole-configuration imports.
   --auto-persist        After every change, save Tasker's running configuration
                         to disk (persist_config; drives Tasker's editor over
                         adb). Env TASKER_AUTO_PERSIST=true|false. Default: off;
                         changes are then live only until persist_config runs.
+                        Works under --write-allow too; with --url it needs
+                        --serial.
   --no-auto-persist     Turn auto-persist off.
   --help                Show this help
   --version             Show the version
@@ -69,6 +80,7 @@ const VALUE_FLAGS = new Set([
   "timeout-ms",
   "adb",
   "write-allow",
+  "write-allow-projects",
 ]);
 /** Flags without a value, stored as "true" / "false". */
 const SWITCH_FLAGS: Record<string, [string, string]> = {
@@ -161,35 +173,47 @@ function parseBool(raw: string, what: string): boolean {
   throw new ConfigError(`Invalid ${what} "${raw}": use true or false.`);
 }
 
-/**
- * Write policy from --write-allow / TASKER_WRITE_ALLOW and the config-import
- * switches / TASKER_ALLOW_CONFIG_IMPORT. Config imports default to allowed,
- * except when an allow list is set: then they must be enabled explicitly.
- */
-export function loadPolicy(flags: Map<string, string>, env: NodeJS.ProcessEnv): WritePolicy {
-  const rawAllow = nonEmpty(flags.get("write-allow")) ?? nonEmpty(env["TASKER_WRITE_ALLOW"]);
-  const prefixes =
-    rawAllow === undefined
-      ? undefined
-      : rawAllow
-          .split(",")
-          .map((p) => p.trim())
-          .filter((p) => p !== "");
-  if (prefixes !== undefined && prefixes.length === 0) {
+function prefixList(raw: string | undefined, what: string): string[] | undefined {
+  if (raw === undefined) return undefined;
+  const prefixes = raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p !== "");
+  if (prefixes.length === 0) {
     throw new ConfigError(
-      `Invalid write allow list "${rawAllow}": give one or more comma separated name prefixes.`,
+      `Invalid ${what} "${raw}": give one or more comma separated name prefixes.`,
     );
   }
+  return prefixes;
+}
+
+/**
+ * Write policy from --write-allow / TASKER_WRITE_ALLOW, --write-allow-projects
+ * / TASKER_WRITE_ALLOW_PROJECTS and the config-import switches /
+ * TASKER_ALLOW_CONFIG_IMPORT. Config imports default to allowed, except when
+ * an allow list is set: then they must be enabled explicitly.
+ */
+export function loadPolicy(flags: Map<string, string>, env: NodeJS.ProcessEnv): WritePolicy {
+  const prefixes = prefixList(
+    nonEmpty(flags.get("write-allow")) ?? nonEmpty(env["TASKER_WRITE_ALLOW"]),
+    "write allow list",
+  );
+  const projects = prefixList(
+    nonEmpty(flags.get("write-allow-projects")) ?? nonEmpty(env["TASKER_WRITE_ALLOW_PROJECTS"]),
+    "project write allow list",
+  );
   const flagImport = flags.get("config-import");
   const envImport = nonEmpty(env["TASKER_ALLOW_CONFIG_IMPORT"]);
-  let allowConfigImport = prefixes === undefined;
+  let allowConfigImport = prefixes === undefined && projects === undefined;
   if (flagImport !== undefined) allowConfigImport = flagImport === "true";
   else if (envImport !== undefined) {
     allowConfigImport = parseBool(envImport, "TASKER_ALLOW_CONFIG_IMPORT");
   }
-  return prefixes === undefined
-    ? { allowConfigImport }
-    : { allowPrefixes: prefixes, allowConfigImport };
+  return {
+    ...(prefixes === undefined ? {} : { allowPrefixes: prefixes }),
+    ...(projects === undefined ? {} : { allowProjects: projects }),
+    allowConfigImport,
+  };
 }
 
 /** --auto-persist / --no-auto-persist, else TASKER_AUTO_PERSIST, else false. */

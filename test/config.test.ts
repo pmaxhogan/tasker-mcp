@@ -144,6 +144,20 @@ describe("write policy", () => {
     expect(() => load(["--write-allow", " , "])).toThrow(/write allow list/);
   });
 
+  it("reads the project allow list; config imports then default to off", () => {
+    expect(load([], { TASKER_WRITE_ALLOW_PROJECTS: " MCP. ," }).config.policy).toEqual({
+      allowProjects: ["MCP."],
+      allowConfigImport: false,
+    });
+    expect(
+      load(["--write-allow-projects=A.", "--write-allow", "T.", "--allow-config-import"], {
+        TASKER_WRITE_ALLOW_PROJECTS: "B.",
+      }).config.policy,
+    ).toEqual({ allowPrefixes: ["T."], allowProjects: ["A."], allowConfigImport: true });
+    expect(() => load(["--write-allow-projects", ","])).toThrow(/project write allow list/);
+    expect(HELP_TEXT).toContain("--write-allow-projects");
+  });
+
   it("lets the config import switch override the default", () => {
     expect(
       load(["--write-allow=A.", "--allow-config-import"]).config.policy.allowConfigImport,

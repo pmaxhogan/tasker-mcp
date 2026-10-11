@@ -148,6 +148,11 @@ verified device behaviour: [../tasker/README.md](../tasker/README.md).
 - **Per-task tools via `#mcp`.** Follows the dceluis/tasker-mcp convention so
   existing tagged tasks work, and lets a user hand the agent a few vetted tasks
   instead of full access.
+- **Project scope beside the name prefixes.** `TASKER_WRITE_ALLOW_PROJECTS`
+  opens whole projects by project-name prefix. Membership is read from a
+  fresh backup, and an existing object is judged by the project it is in now,
+  never by where a call wants to put it, so the scope cannot be widened by
+  moving things into it (`checkWritableIn` in `src/tools/runtime.ts`).
 - **Write policy by name prefix.** A real phone holds real automations; a prefix
   allow list is simple to reason about and enforced in one place
   (`ToolContext.assertWritable`).

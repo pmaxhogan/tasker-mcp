@@ -26,10 +26,17 @@ export interface WritePolicy {
    */
   allowPrefixes?: string[];
   /**
+   * Project name prefixes (env TASKER_WRITE_ALLOW_PROJECTS, comma separated).
+   * A project whose name starts with one is writable, and so is every task,
+   * profile and scene in it whatever its own name. Setting it confines writes
+   * the same way allowPrefixes does.
+   */
+  allowProjects?: string[];
+  /**
    * Whether tools may replace the whole Tasker configuration (POST /config).
    * Needed for delete, rename, profile/project edits, move_to_project, and
    * restore_snapshot. Env TASKER_ALLOW_CONFIG_IMPORT (default true, false
-   * whenever allowPrefixes is set unless explicitly enabled).
+   * whenever allowPrefixes or allowProjects is set unless explicitly enabled).
    */
   allowConfigImport: boolean;
 }

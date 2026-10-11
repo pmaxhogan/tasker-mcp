@@ -43,6 +43,8 @@ import {
   specLookup,
   tidy,
   withConfigEdit,
+  assertRenameWritable,
+  assertWritableIn,
   type ActionInput,
 } from "./mutate.ts";
 
@@ -450,10 +452,15 @@ export const register: RegisterTools = (server, ctx) => {
         validate?: boolean;
       }) =>
         exclusive(async () => {
-          ctx.assertWritable("task", args.name);
           if (args.project !== undefined && args.project !== BASE_PROJECT) {
             ctx.assertWritable("project", args.project);
           }
+          await assertWritableIn(
+            ctx,
+            "task",
+            args.name,
+            args.project === undefined ? {} : { project: args.project },
+          );
           const doc = (await ctx.backup()).doc;
           if (doc.taskByName(args.name) !== undefined) {
             throw new ToolError(
@@ -496,7 +503,7 @@ export const register: RegisterTools = (server, ctx) => {
     },
     handler(async (args: { name: string; patch: PatchInput | PatchInput[]; validate?: boolean }) =>
       exclusive(async () => {
-        ctx.assertWritable("task", args.name);
+        await assertWritableIn(ctx, "task", args.name);
         const doc = (await ctx.backup()).doc;
         const current = taskJson(ctx, doc, requireTask(doc, args.name));
         delete current.warnings;
@@ -531,7 +538,7 @@ export const register: RegisterTools = (server, ctx) => {
       annotations: DESTRUCTIVE,
     },
     handler(async ({ name, force }: { name: string; force?: boolean }) => {
-      ctx.assertWritable("task", name);
+      await assertWritableIn(ctx, "task", name);
       const r = await withConfigEdit(ctx, "delete_task", `delete task ${name}`, (doc) => {
         const el = requireTask(doc, name);
         const users = profilesUsingTask(doc, TaskerDoc.idOf(el) ?? -1);
@@ -584,7 +591,12 @@ export const register: RegisterTools = (server, ctx) => {
         project?: string;
         enabled?: boolean;
       }) => {
-        ctx.assertWritable("profile", args.name);
+        await assertWritableIn(
+          ctx,
+          "profile",
+          args.name,
+          args.project === undefined ? {} : { project: args.project },
+        );
         if (args.project !== undefined) ctx.assertWritable("project", args.project);
         const r = await withConfigEdit(
           ctx,
@@ -668,8 +680,11 @@ export const register: RegisterTools = (server, ctx) => {
         };
       }) => {
         const s = args.set;
-        ctx.assertWritable("profile", args.name);
-        if (s.name !== undefined) ctx.assertWritable("profile", s.name);
+        if (s.name !== undefined && s.name !== args.name) {
+          await assertRenameWritable(ctx, "profile", args.name, s.name);
+        } else {
+          await assertWritableIn(ctx, "profile", args.name);
+        }
         const keys = Object.keys(s).filter((k) => (s as Record<string, unknown>)[k] !== undefined);
         if (keys.length === 0)
           throw new ToolError("Nothing to change", "pass at least one field in set");
@@ -755,7 +770,7 @@ export const register: RegisterTools = (server, ctx) => {
       annotations: DESTRUCTIVE,
     },
     handler(async ({ name }: { name: string }) => {
-      ctx.assertWritable("profile", name);
+      await assertWritableIn(ctx, "profile", name);
       const r = await withConfigEdit(ctx, "delete_profile", `delete profile ${name}`, (doc) => {
         const p = requireProfile(doc, name);
         const id = TaskerDoc.idOf(p);
@@ -794,7 +809,8 @@ export const register: RegisterTools = (server, ctx) => {
         name: string;
         project: string;
       }) => {
-        ctx.assertWritable(kind, name);
+        // The destination vouches only for an object that already may be written.
+        await assertWritableIn(ctx, kind, name);
         ctx.assertWritable("project", project);
         const r = await withConfigEdit(
           ctx,
@@ -862,8 +878,7 @@ export const register: RegisterTools = (server, ctx) => {
         from: string;
         to: string;
       }) => {
-        ctx.assertWritable(kind, from);
-        ctx.assertWritable(kind, to);
+        await assertRenameWritable(ctx, kind, from, to);
         const r = await withConfigEdit(ctx, "rename", `rename ${kind} ${from}`, (doc) => {
           const warnings: string[] = [];
           const clash = (exists: boolean): void => {

@@ -19,7 +19,7 @@ import { wrapForImport } from "../model/convert.ts";
 import { TaskerDoc } from "../model/document.ts";
 import type { XmlElement } from "../xml/index.ts";
 import { ToolError, handler, ok, type ToolContext } from "./context.ts";
-import { exclusive, finishMutation } from "./mutate.ts";
+import { assertWritableIn, exclusive, finishMutation } from "./mutate.ts";
 import { PERSIST_HINT } from "./persist.ts";
 
 /** Fallback Tasker version for the import wrapper when the snapshot has none. */
@@ -111,11 +111,13 @@ export function register(server: McpServer, ctx: ToolContext): void {
 
       const allowed: { name: string; el: XmlElement }[] = [];
       const skipped: { name: string; reason: string }[] = [];
+      // Project scope is judged against the live configuration, not the snapshot's.
+      const live = ctx.policy.allowProjects === undefined ? undefined : (await ctx.backup()).doc;
       for (const el of doc.tasks()) {
         const name = TaskerDoc.nameOf(el);
         if (name === "") continue;
         try {
-          ctx.assertWritable("task", name);
+          await assertWritableIn(ctx, "task", name, live === undefined ? {} : { doc: live });
           allowed.push({ name, el });
         } catch (e) {
           skipped.push({ name, reason: e instanceof Error ? e.message : String(e) });
@@ -124,7 +126,7 @@ export function register(server: McpServer, ctx: ToolContext): void {
       if (allowed.length === 0) {
         throw new ToolError(
           `Snapshot ${info.id} has no named task the write policy allows`,
-          "check TASKER_WRITE_ALLOW, or restore with mode config",
+          "check TASKER_WRITE_ALLOW / TASKER_WRITE_ALLOW_PROJECTS, or restore with mode config",
         );
       }
       return exclusive(async () => {

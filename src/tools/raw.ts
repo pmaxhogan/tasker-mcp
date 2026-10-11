@@ -35,6 +35,7 @@ import {
   tidy,
   validateOrThrow,
   withConfigEdit,
+  assertWritableIn,
   type MutationResult,
 } from "./mutate.ts";
 import { findTask, requireProfile, requireProject, requireScene } from "./structured.ts";
@@ -239,17 +240,31 @@ export function mergeConfig(doc: TaskerDoc, inc: TaskerDoc): MergeReport {
   return report;
 }
 
-function assertImportWritable(ctx: ToolContext, inc: TaskerDoc): void {
+/** Every object in the XML must be writable; a new one counts as headed for the project the XML puts it in. */
+async function assertImportWritable(ctx: ToolContext, inc: TaskerDoc): Promise<void> {
+  const doc = ctx.policy.allowProjects === undefined ? undefined : (await ctx.backup()).doc;
+  const check = (
+    kind: "task" | "profile" | "scene",
+    name: string,
+    into: XmlElement | undefined,
+  ): Promise<void> =>
+    assertWritableIn(ctx, kind, name, {
+      ...(doc === undefined ? {} : { doc }),
+      ...(into === undefined ? {} : { project: projectName(into) }),
+    });
   for (const t of inc.tasks()) {
     const n = TaskerDoc.nameOf(t);
-    if (n !== "") ctx.assertWritable("task", n);
+    if (n !== "") await check("task", n, inc.projectOfTask(TaskerDoc.idOf(t) ?? -1));
   }
   for (const p of inc.profiles()) {
     const n = TaskerDoc.nameOf(p);
-    if (n !== "") ctx.assertWritable("profile", n);
+    if (n !== "") await check("profile", n, inc.projectOfProfile(TaskerDoc.idOf(p) ?? -1));
   }
   for (const p of inc.projects()) ctx.assertWritable("project", projectName(p));
-  for (const s of inc.scenes()) ctx.assertWritable("scene", TaskerDoc.nameOf(s));
+  for (const s of inc.scenes()) {
+    const n = TaskerDoc.nameOf(s);
+    await check("scene", n, inc.projectOfScene(n));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -355,7 +370,7 @@ export const register: RegisterTools = (server, ctx) => {
     },
     handler(async ({ xml, validate }: { xml: string; validate?: boolean }) => {
       const inc = parseImport(xml);
-      assertImportWritable(ctx, inc);
+      await assertImportWritable(ctx, inc);
       const lookup = specLookup(ctx.spec);
       const structural = inc.profiles().length + inc.projects().length + inc.scenes().length > 0;
       if (structural) {
