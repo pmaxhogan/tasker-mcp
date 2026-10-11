@@ -356,6 +356,7 @@ Until the repository variable `NPM_TRUSTED_PUBLISHING` is `true`, the job runs
    Actions, owner `pmaxhogan`, repository `tasker-mcp`, workflow `publish.yml`,
    and tick the option that allows `npm publish`. New configurations are
    stage-only unless you do.
+
 3. Arm the job: `gh variable set NPM_TRUSTED_PUBLISHING --body true`.
 4. Run the workflow straight away (Actions > Publish > Run workflow). A new
    trusted publisher expires unless it completes a publish within 2 days.
