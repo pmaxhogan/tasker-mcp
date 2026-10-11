@@ -99,5 +99,15 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run build
+      # Dry-run the version the release job would publish next, not the floor
+      # in package.json: npm rejects a dry run of an already published version.
+      - name: Compute the next version
+        run: |
+          name=$(node -p "require('./package.json').name")
+          base=$(node -p "require('./package.json').version")
+          latest=$(npm view "$name" version 2>/dev/null || echo 0.0.0)
+          next=$(node scripts/next-version.mjs "$latest" "$base")
+          echo "latest=$latest base=$base next=$next"
+          npm version "$next" --no-git-tag-version --allow-same-version
       - name: npm publish --dry-run
         run: npm publish --dry-run --access public
