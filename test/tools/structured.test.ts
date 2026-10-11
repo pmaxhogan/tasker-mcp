@@ -399,6 +399,52 @@ describe("create_task", () => {
     expect(okr.isError, okr.text).toBe(false);
   });
 
+  it("edits tasks in an allowed project and refuses the rest", async () => {
+    const { fc, t } = await setup({
+      xml: SCENE_BACKUP,
+      policy: { allowProjects: ["Tasker"], allowConfigImport: false },
+    });
+    const edit = { actions: [{ action: "Flash", args: { Text: "x" } }] };
+    const r = await t.call("edit_task", { name: "TaskerMCP.Debug", patch: edit });
+    expect(r.isError, r.text).toBe(false);
+    expect(r.json).toMatchObject({ project: "TaskerMCP", verified: true });
+    expect(fc.phone.routes()).not.toContain("/config");
+    const refused = await t.call("edit_task", { name: "MCP.T1", patch: edit });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain('it is in project "Base"');
+    const fresh = await t.call("create_task", { name: "New", project: "TaskerMCP", actions: [] });
+    expect(fresh.text).toContain("needs a whole-configuration import");
+    expect(fc.phone.routes().filter((x) => x === "/import")).toHaveLength(1);
+  });
+
+  it("creates, renames and moves inside allowed projects with config imports on", async () => {
+    const { fc, t } = await setup({
+      xml: SCENE_BACKUP,
+      policy: { allowProjects: ["Tasker"], allowConfigImport: true },
+    });
+    const made = await t.call("create_task", { name: "New", project: "TaskerMCP", actions: [] });
+    expect(made.isError, made.text).toBe(false);
+    expect(made.json).toMatchObject({ project: "TaskerMCP" });
+    expect((await t.call("create_task", { name: "Loose", actions: [] })).text).toContain(
+      'Write to task "Loose" refused',
+    );
+    const renamed = await t.call("rename", { kind: "task", from: "New", to: "Newer" });
+    expect(renamed.isError, renamed.text).toBe(false);
+    // Moving a foreign task in would bring it into scope; moving one out is refused too.
+    const pull = await t.call("move_to_project", {
+      kind: "task",
+      name: "MCP.T1",
+      project: "TaskerMCP",
+    });
+    expect(pull.text).toContain('it is in project "Base"');
+    const push = await t.call("move_to_project", { kind: "task", name: "Newer", project: "Base" });
+    expect(push.text).toContain('Write to project "Base" refused');
+    const gone = await t.call("delete_task", { name: "Newer" });
+    expect(gone.isError, gone.text).toBe(false);
+    expect((await t.call("delete_task", { name: "MCP.T1" })).isError).toBe(true);
+    expect(fc.phone.doc.taskByName("MCP.T1")).toBeDefined();
+  });
+
   it("deletes stale duplicates when the phone adds a copy", async () => {
     const { fc, t } = await setup();
     await t.call("create_task", {

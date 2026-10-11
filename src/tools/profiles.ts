@@ -10,7 +10,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { TaskerHttpError } from "../client/index.ts";
 import { fail, handler, ok, type ToolContext } from "./context.ts";
-import { exclusive, finishMutation } from "./mutate.ts";
+import { assertWritableIn, exclusive, finishMutation } from "./mutate.ts";
 
 export function register(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -33,7 +33,7 @@ export function register(server: McpServer, ctx: ToolContext): void {
       },
     },
     handler(async ({ name, enabled }) => {
-      ctx.assertWritable("profile", name);
+      await assertWritableIn(ctx, "profile", name);
       return exclusive(async () => {
         const client = await ctx.client();
         try {

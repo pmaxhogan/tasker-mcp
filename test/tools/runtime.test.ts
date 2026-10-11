@@ -8,13 +8,15 @@ import { DocsStore } from "../../src/docs/index.ts";
 import { SnapshotStore } from "../../src/snapshots.ts";
 import { getSpec } from "../../src/spec/table.ts";
 import { ToolError } from "../../src/tools/context.ts";
+import { TaskerDoc } from "../../src/model/document.ts";
 import {
   checkWritable,
+  checkWritableIn,
   createToolContext,
   describePolicy,
   TOKEN_HINT,
 } from "../../src/tools/runtime.ts";
-import { connectTools, createFakeContext, EMPTY_BACKUP } from "./fake-context.ts";
+import { connectTools, createFakeContext, EMPTY_BACKUP, SCENE_BACKUP } from "./fake-context.ts";
 
 let home: string;
 beforeEach(async () => {
@@ -81,6 +83,21 @@ describe("checkWritable", () => {
     expect((err as ToolError).hint).toContain("TASKER_WRITE_ALLOW");
   });
 
+  it("allows projects by project prefix", () => {
+    const p = { allowProjects: ["MCP."], allowConfigImport: false };
+    expect(() => checkWritable(p, "project", "MCP.Home")).not.toThrow();
+    expect(() => checkWritable(p, "project", "Base")).toThrow(/projects starting with "MCP\."/);
+    // A project list alone confines every name.
+    expect(() => checkWritable(p, "task", "MCP.T1")).toThrow(/refused/);
+    expect(() => checkWritable(p, "variable", "%Any")).toThrow(/refused/);
+    const both = { allowPrefixes: ["X."], allowProjects: ["MCP."], allowConfigImport: false };
+    expect(() => checkWritable(both, "task", "X.A")).not.toThrow();
+    expect(() => checkWritable(both, "project", "X.P")).not.toThrow();
+    expect(() => checkWritable(both, "task", "Other")).toThrow(
+      /names starting with "X\." and objects in projects starting with "MCP\."/,
+    );
+  });
+
   it("guards config imports", () => {
     expect(() => checkWritable({ allowConfigImport: false }, "config", "delete x")).toThrow(
       /\(delete x\), which is disabled/,
@@ -89,11 +106,61 @@ describe("checkWritable", () => {
     expect(() => checkWritable({ allowConfigImport: true }, "config", "")).not.toThrow();
   });
 
+  it("describes the project scope", () => {
+    expect(describePolicy({ allowProjects: ["MCP."], allowConfigImport: false })).toBe(
+      "writes are limited to projects starting with MCP.; config imports disabled",
+    );
+    expect(
+      describePolicy({ allowPrefixes: ["A"], allowProjects: ["MCP."], allowConfigImport: true }),
+    ).toBe(
+      "writes are limited to names starting with A and projects starting with MCP.; config imports allowed",
+    );
+  });
+
   it("describes the policy", () => {
     expect(describePolicy({ allowConfigImport: true })).toBe("config imports allowed");
     expect(describePolicy({ allowPrefixes: ["A", "B"], allowConfigImport: false })).toBe(
       "writes are limited to names starting with A, B; config imports disabled",
     );
+  });
+});
+
+describe("checkWritableIn", () => {
+  // Base: task MCP.T1, scene Pop. TaskerMCP: profile "TaskerMCP HTTP", tasks TaskerMCP.*.
+  const doc = TaskerDoc.parse(SCENE_BACKUP);
+  const p = { allowProjects: ["Tasker"], allowConfigImport: false };
+
+  it("passes what the name list already allows, without a project list too", () => {
+    const names = { allowPrefixes: ["MCP."], allowConfigImport: false };
+    expect(() => checkWritableIn(names, "task", "MCP.T1", doc)).not.toThrow();
+    expect(() => checkWritableIn(names, "task", "TaskerMCP.Setup", doc)).toThrow(/refused/);
+    expect(() => checkWritableIn({ allowConfigImport: true }, "task", "Any", doc)).not.toThrow();
+  });
+
+  it("allows objects that sit in an allowed project", () => {
+    expect(() => checkWritableIn(p, "task", "TaskerMCP.Setup", doc)).not.toThrow();
+    expect(() => checkWritableIn(p, "profile", "TaskerMCP HTTP", doc)).not.toThrow();
+    expect(() => checkWritableIn(p, "task", "MCP.T1", doc)).toThrow(/it is in project "Base"/);
+    expect(() => checkWritableIn(p, "scene", "Pop", doc)).toThrow(/it is in project "Base"/);
+    expect(() => checkWritableIn(p, "variable", "%X", doc)).toThrow(/refused/);
+  });
+
+  it("does not let a destination vouch for an existing foreign object", () => {
+    const open = { ...p, allowConfigImport: true };
+    expect(() => checkWritableIn(open, "task", "MCP.T1", doc, "TaskerMCP")).toThrow(
+      /it is in project "Base"/,
+    );
+  });
+
+  it("allows a new object headed for an allowed project, given config imports", () => {
+    expect(() => checkWritableIn(p, "task", "New", doc)).toThrow(/refused/);
+    expect(() => checkWritableIn(p, "task", "New", doc, "Base")).toThrow(/refused/);
+    expect(() => checkWritableIn(p, "task", "New", doc, "TaskerMCP")).toThrow(
+      /needs a whole-configuration import/,
+    );
+    expect(() =>
+      checkWritableIn({ ...p, allowConfigImport: true }, "task", "New", doc, "TaskerMCP"),
+    ).not.toThrow();
   });
 });
 

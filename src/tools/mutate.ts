@@ -56,9 +56,10 @@ import {
   XmlParseError,
   type XmlElement,
 } from "../xml/index.ts";
-import { ToolError, type Snapshot, type ToolContext } from "./context.ts";
+import { ToolError, type ObjectKind, type Snapshot, type ToolContext } from "./context.ts";
 import { exclusive } from "./lock.ts";
 import { canPersist, persistConfig, PERSIST_HINT } from "./persist.ts";
+import { checkWritableIn, projectOfObject } from "./runtime.ts";
 
 // ---------------------------------------------------------------------------
 // Mutex (src/tools/lock.ts) and persistence
@@ -88,7 +89,7 @@ export async function finishMutation(ctx: ToolContext, warnings: string[]): Prom
   try {
     if (!(await canPersist(ctx))) {
       warnings.push(
-        "auto-persist skipped: it needs an adb device (TASKER_ADB_SERIAL or no TASKER_URL) and config imports allowed",
+        "auto-persist skipped: it needs an adb device (set TASKER_ADB_SERIAL, or leave TASKER_URL unset)",
       );
       return notPersisted;
     }
@@ -100,6 +101,51 @@ export async function finishMutation(ctx: ToolContext, warnings: string[]): Prom
     warnings.push(`auto-persist failed: ${e instanceof Error ? e.message : String(e)}${hint}`);
     return notPersisted;
   }
+}
+
+/**
+ * The write-scope check for a task, profile or scene, project scope included
+ * (TASKER_WRITE_ALLOW_PROJECTS): a name the allow list refuses still passes
+ * when the object sits in an allowed project, or is new and headed for one
+ * (`project`). That needs the configuration, so `doc` is fetched when not given
+ * and the name alone does not settle it.
+ */
+export async function assertWritableIn(
+  ctx: ToolContext,
+  kind: ObjectKind,
+  name: string,
+  opts: { doc?: TaskerDoc; project?: string } = {},
+): Promise<void> {
+  try {
+    ctx.assertWritable(kind, name);
+    return;
+  } catch (e) {
+    if (ctx.policy.allowProjects === undefined) throw e;
+  }
+  const doc = opts.doc ?? (await ctx.backup()).doc;
+  checkWritableIn(ctx.policy, kind, name, doc, opts.project);
+}
+
+/**
+ * The check for a rename: `from` must be writable, and `to` is judged as
+ * staying in `from`'s project.
+ */
+export async function assertRenameWritable(
+  ctx: ToolContext,
+  kind: ObjectKind,
+  from: string,
+  to: string,
+  doc?: TaskerDoc,
+): Promise<void> {
+  const d = doc ?? (ctx.policy.allowProjects === undefined ? undefined : (await ctx.backup()).doc);
+  if (d === undefined) {
+    ctx.assertWritable(kind, from);
+    ctx.assertWritable(kind, to);
+    return;
+  }
+  await assertWritableIn(ctx, kind, from, { doc: d });
+  const project = projectOfObject(d, kind, from);
+  await assertWritableIn(ctx, kind, to, { doc: d, ...(project === undefined ? {} : { project }) });
 }
 
 // ---------------------------------------------------------------------------
@@ -808,11 +854,17 @@ export function applyTask(
   return exclusive(async () => {
     const name = desired.name;
     if (name.trim() === "") throw new ToolError("A task needs a name");
-    ctx.assertWritable("task", name);
     if (opts.baseName !== undefined && opts.baseName !== name) {
-      ctx.assertWritable("task", opts.baseName);
+      await assertRenameWritable(ctx, "task", opts.baseName, name);
       // A rename deletes the old task afterwards, which needs a config import.
       ctx.assertWritable("config", `rename task ${opts.baseName}`);
+    } else {
+      await assertWritableIn(
+        ctx,
+        "task",
+        name,
+        desired.project === undefined ? {} : { project: desired.project },
+      );
     }
     const warnings = opts.validate === false ? [] : validateOrThrow(ctx.spec, desired);
     const lookup = specLookup(ctx.spec);

@@ -74,9 +74,12 @@ export interface PersistOutcome {
   warnings: string[];
 }
 
-/** True when persist can run at all: config writes allowed and an adb serial known. */
+/**
+ * True when persist can run at all: an adb serial is known. The write policy
+ * does not gate it: the restore puts Tasker's own running configuration back
+ * over itself, so it writes nothing the policy did not already let through.
+ */
 export async function canPersist(ctx: ToolContext): Promise<boolean> {
-  if (!ctx.policy.allowConfigImport) return false;
   try {
     return (await ctx.serial()) !== undefined;
   } catch {
@@ -195,19 +198,11 @@ export async function persistConfig(
   opts: Partial<PersistTiming> = {},
 ): Promise<PersistOutcome> {
   const t: PersistTiming = { ...persistDefaults, ...opts };
-  try {
-    ctx.assertWritable("config", "persist_config");
-  } catch (e) {
-    throw new ToolError(
-      `persist_config is refused by the write policy: ${msg(e)}`,
-      manual("restoring the whole configuration is a config write; "),
-    );
-  }
   const serial = await ctx.serial();
   if (serial === undefined) {
     throw new ToolError(
       "persist_config needs adb to drive Tasker's editor, and no adb device is configured",
-      manual("set TASKER_ADB_SERIAL (or leave TASKER_URL unset), or "),
+      manual("set TASKER_ADB_SERIAL / --serial (or leave TASKER_URL unset), or "),
     );
   }
   return exclusive(async () => {
@@ -265,7 +260,7 @@ export async function persistConfig(
       });
       throw new ToolError(
         `After persist_config Tasker's configuration differs from before: ${diff.join("; ")}`,
-        `restore_snapshot {"id": "${info.id}"} puts the previous configuration back`,
+        `restore_snapshot {"id": "${info.id}", "mode": "config"} puts the previous configuration back (it needs config imports allowed)`,
       );
     }
     return { persisted: true, durationMs: t.now() - start, warnings };
@@ -281,7 +276,7 @@ export const register: RegisterTools = (server, ctx) => {
         "Save Tasker's running configuration to disk so changes survive a Tasker restart or reboot. " +
         "Tasker only writes its configuration when its own editor saves, so every change made through tasker-mcp is live but unsaved until this runs (and saving in the editor first discards it). " +
         "It drives Tasker's editor over adb (Data > Restore > tasker-mcp-live, then Back to save), then re-reads the configuration to check it. " +
-        "Needs adb and an unlocked, awake screen; takes about 25 seconds. Call it once after a batch of changes. " +
+        "Needs adb (with TASKER_URL set, also TASKER_ADB_SERIAL) and an unlocked, awake screen; takes about 25 seconds. It works under a write allow list too. Call it once after a batch of changes. " +
         "Example: persist_config {}",
       inputSchema: {},
       annotations: {

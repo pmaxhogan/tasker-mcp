@@ -98,12 +98,15 @@ describe("persistConfig", () => {
     expect(android.calls).toEqual([]);
   });
 
-  it("refuses under a write policy without config imports, with the manual steps", async () => {
-    const { ctx } = await setup({ policy: { allowPrefixes: ["X."], allowConfigImport: false } });
-    const e = await persistConfig(ctx, timing()).catch((x: unknown) => x);
-    expect((e as Error).message).toMatch(/refused by the write policy/);
-    expect((e as { hint: string }).hint).toContain(MANUAL_STEPS);
-    expect(android.calls).toEqual([]);
+  it("runs under a write policy without config imports", async () => {
+    const { ctx, phone } = await setup({
+      policy: { allowPrefixes: ["X."], allowConfigImport: false },
+    });
+    const r = await persistConfig(ctx, timing());
+    expect(r.persisted).toBe(true);
+    expect(android.picked).toBe("tasker-mcp-live");
+    // The restore happens in Tasker's editor; nothing is posted to /config.
+    expect(phone.routes()).not.toContain("/config");
   });
 
   it.each([
@@ -212,7 +215,7 @@ describe("persistConfig", () => {
     const e = await persistConfig(ctx, timing()).catch((x: unknown) => x);
     expect((e as Error).message).toMatch(/differs from before: tasks missing: MCP\.T1/);
     expect((e as { hint: string }).hint).toMatch(
-      /restore_snapshot \{"id": "[^"]+before-persist[^"]*"\} puts/,
+      /restore_snapshot \{"id": "[^"]+before-persist[^"]*", "mode": "config"\} puts/,
     );
     const snaps = await ctx.snapshots.list();
     expect(snaps.map((s) => s.tool)).toContain("persist_config");
@@ -269,7 +272,7 @@ describe("helpers", () => {
     ]);
   });
 
-  it("canPersist needs config imports and an adb serial", async () => {
+  it("canPersist needs an adb serial, not config imports", async () => {
     const { ctx } = await setup();
     expect(await canPersist(ctx)).toBe(true);
     await fc?.cleanup();
@@ -278,10 +281,9 @@ describe("helpers", () => {
     expect(await canPersist(noAdb.ctx)).toBe(false);
     await t?.close();
     const confined = await setup({ policy: { allowConfigImport: false } });
-    expect(await canPersist(confined.ctx)).toBe(false);
+    expect(await canPersist(confined.ctx)).toBe(true);
     const broken = {
       ...confined.ctx,
-      policy: { allowConfigImport: true },
       serial: async () => {
         throw new Error("no device");
       },

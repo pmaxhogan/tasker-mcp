@@ -13,6 +13,7 @@ import { log } from "../log.ts";
 import { TaskerDoc } from "../model/document.ts";
 import { SnapshotStore } from "../snapshots.ts";
 import { getSpec, type SpecIndex } from "../spec/table.ts";
+import { childText, type XmlElement } from "../xml/index.ts";
 import {
   ToolError,
   type ObjectKind,
@@ -49,9 +50,14 @@ export interface RuntimeContext extends ToolContext {
 /** Human description of the write policy, for error hints. */
 export function describePolicy(policy: WritePolicy): string {
   const parts: string[] = [];
+  const scopes: string[] = [];
   if (policy.allowPrefixes !== undefined) {
-    parts.push(`writes are limited to names starting with ${policy.allowPrefixes.join(", ")}`);
+    scopes.push(`names starting with ${policy.allowPrefixes.join(", ")}`);
   }
+  if (policy.allowProjects !== undefined) {
+    scopes.push(`projects starting with ${policy.allowProjects.join(", ")}`);
+  }
+  if (scopes.length > 0) parts.push(`writes are limited to ${scopes.join(" and ")}`);
   parts.push(policy.allowConfigImport ? "config imports allowed" : "config imports disabled");
   return parts.join("; ");
 }
@@ -70,17 +76,100 @@ export function checkWritable(policy: WritePolicy, kind: ObjectKind, name: strin
     }
     return;
   }
-  const prefixes = policy.allowPrefixes;
-  if (prefixes === undefined) return;
+  if (policy.allowPrefixes === undefined && policy.allowProjects === undefined) return;
+  const prefixes = policy.allowPrefixes ?? [];
   // Globals are written with or without the leading %; check the bare name.
   const bare = kind === "variable" ? name.replace(/^%/, "") : name;
   const ok = prefixes.some((p) => bare.startsWith(p.replace(/^%/, "")) || name.startsWith(p));
-  if (!ok) {
+  if (ok || (kind === "project" && inAllowedProject(policy, name))) return;
+  throw new ToolError(`Write to ${kind} "${name}" refused: ${scopeText(policy)}`, SCOPE_HINT);
+}
+
+const SCOPE_HINT =
+  "rename the object to an allowed prefix, move it into an allowed project, or extend TASKER_WRITE_ALLOW / TASKER_WRITE_ALLOW_PROJECTS";
+
+function scopeText(policy: WritePolicy): string {
+  const list = (xs: string[]): string => xs.map((p) => JSON.stringify(p)).join(", ");
+  const parts: string[] = [];
+  if (policy.allowPrefixes !== undefined) {
+    parts.push(`names starting with ${list(policy.allowPrefixes)}`);
+  }
+  if (policy.allowProjects !== undefined) {
+    parts.push(`objects in projects starting with ${list(policy.allowProjects)}`);
+  }
+  return `the write allow list only permits ${parts.join(" and ")}`;
+}
+
+/** True when `project` starts with one of the policy's allowed project prefixes. */
+export function inAllowedProject(policy: WritePolicy, project: string | undefined): boolean {
+  return project !== undefined && (policy.allowProjects ?? []).some((p) => project.startsWith(p));
+}
+
+/** Name of the project that lists the named task, profile or scene, when it exists in one. */
+export function projectOfObject(
+  doc: TaskerDoc,
+  kind: ObjectKind,
+  name: string,
+): string | undefined {
+  const idOf = (el: XmlElement | undefined): number =>
+    el === undefined ? -1 : (TaskerDoc.idOf(el) ?? -1);
+  const p =
+    kind === "task"
+      ? doc.projectOfTask(idOf(doc.taskByName(name)))
+      : kind === "profile"
+        ? doc.projectOfProfile(idOf(doc.profileByName(name)))
+        : kind === "scene"
+          ? doc.projectOfScene(name)
+          : undefined;
+  return p === undefined ? undefined : (childText(p, "name") ?? "");
+}
+
+function objectExists(doc: TaskerDoc, kind: ObjectKind, name: string): boolean {
+  if (kind === "task") return doc.taskByName(name) !== undefined;
+  if (kind === "profile") return doc.profileByName(name) !== undefined;
+  return kind === "scene" && doc.sceneByName(name) !== undefined;
+}
+
+/**
+ * checkWritable, plus the project scope (allowProjects), which needs the
+ * current configuration: an object whose name is not allowed is still writable
+ * when it sits in an allowed project. One that does not exist yet is writable
+ * when it is headed for an allowed project (`destination`); that takes a
+ * config import, since every new object lands in Base first.
+ */
+export function checkWritableIn(
+  policy: WritePolicy,
+  kind: ObjectKind,
+  name: string,
+  doc: TaskerDoc,
+  destination?: string,
+): void {
+  try {
+    checkWritable(policy, kind, name);
+    return;
+  } catch (e) {
+    if (policy.allowProjects === undefined || !["task", "profile", "scene"].includes(kind)) {
+      throw e;
+    }
+  }
+  if (objectExists(doc, kind, name)) {
+    const current = projectOfObject(doc, kind, name);
+    if (inAllowedProject(policy, current)) return;
     throw new ToolError(
-      `Write to ${kind} "${name}" refused: the write allow list only permits names starting with ${prefixes
-        .map((p) => JSON.stringify(p))
-        .join(", ")}`,
-      "rename the object to an allowed prefix or extend TASKER_WRITE_ALLOW / --write-allow",
+      `Write to ${kind} "${name}" refused: it is in project ${JSON.stringify(current ?? "(none)")}, and ${scopeText(policy)}`,
+      SCOPE_HINT,
+    );
+  }
+  if (!inAllowedProject(policy, destination)) {
+    throw new ToolError(
+      `Write to ${kind} "${name}" refused: ${scopeText(policy)}`,
+      `${SCOPE_HINT}; a new ${kind} is allowed when it is created in an allowed project`,
+    );
+  }
+  if (!policy.allowConfigImport) {
+    throw new ToolError(
+      `Creating ${kind} "${name}" in project "${destination}" needs a whole-configuration import (new objects land in Base first), which is disabled`,
+      "set TASKER_ALLOW_CONFIG_IMPORT=true or pass --allow-config-import, or give it an allowed name prefix",
     );
   }
 }

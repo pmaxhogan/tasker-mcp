@@ -120,6 +120,8 @@ Verified on Tasker 6.6.20 (trial build) on an Android 17 emulator.
   relaunch only after this, and is lost without it
   (`test/device/persist.test.ts`). The round trip takes about 23 seconds on
   the emulator, most of it `uiautomator dump` (about 2 seconds per screen).
+  The write policy does not gate it: the restore puts Active back over
+  itself, so it saves nothing an allow list did not already let through.
   The server never unlocks a phone: with the keyguard showing or the screen
   off it fails with the manual steps instead. The GUI steps match English
   labels.
