@@ -20,7 +20,7 @@ jobs:
     name: Lint and typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -39,7 +39,7 @@ jobs:
     name: Test (coverage)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -61,7 +61,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -79,11 +79,11 @@ jobs:
     name: gitleaks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -91,7 +91,7 @@ jobs:
     name: Publish dry-run
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -99,5 +99,15 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run build
+      # Dry-run the version the release job would publish next, not the floor
+      # in package.json: npm rejects a dry run of an already published version.
+      - name: Compute the next version
+        run: |
+          name=$(node -p "require('./package.json').name")
+          base=$(node -p "require('./package.json').version")
+          latest=$(npm view "$name" version 2>/dev/null || echo 0.0.0)
+          next=$(node scripts/next-version.mjs "$latest" "$base")
+          echo "latest=$latest base=$base next=$next"
+          npm version "$next" --no-git-tag-version --allow-same-version
       - name: npm publish --dry-run
         run: npm publish --dry-run --access public
