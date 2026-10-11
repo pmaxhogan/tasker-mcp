@@ -208,8 +208,8 @@ Tools that change your Tasker configuration or phone state are marked **yes**.
 | `list_action_categories` | Action categories.                                          | no      |
 | `search_docs`            | Search the Tasker userguide.                                | no      |
 | `list_docs`              | List userguide pages.                                       | no      |
-| `get_doc`                | One userguide page.                                         | no      |
-| `refresh_docs`           | Re-download the docs cache.                                 | no      |
+| `get_doc`                | One userguide page, or one section of a long manual.        | no      |
+| `refresh_docs`           | Re-download the docs index; drops cached pages if changed.  | no      |
 
 ### Logs
 
@@ -324,6 +324,16 @@ The Tasker userguide is scraped weekly by a GitHub Action into the orphan
 `docs-data` branch of this repo and downloaded to `~/.tasker-mcp/docs` on first
 use of a docs tool. The text is (c) joaoapps and is never committed to `main`
 or shipped in the npm package.
+
+Manuals that the site loads section by section with JavaScript, such as the
+Scenes V2 (Screen Builder) Manual, are stored one section per page:
+`get_doc {"slug": "scenes_v2"}` returns an index of the sections, and each
+section has its own slug (`scenes_v2__05_general`) that `search_docs` returns
+and `get_doc` reads.
+
+The cache is not refreshed on its own. Call `refresh_docs` to pick up a newer
+scrape; pages already downloaded are dropped when the published guide changed
+and are downloaded again when next read.
 
 ## Development
 

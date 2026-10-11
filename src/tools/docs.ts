@@ -21,7 +21,9 @@ export function register(server: McpServer, ctx: ToolContext): void {
       title: "Search Tasker docs",
       description:
         "Full-text search over the Tasker userguide (guide pages plus the action, event and " +
-        "state help pages). Returns slugs with a snippet; read one with get_doc. " +
+        "state help pages). Long manuals such as the Scenes V2 (Screen Builder) Manual are " +
+        "indexed one section per page (scenes_v2__05_general). Returns slugs with a snippet; " +
+        "read one with get_doc. " +
         'Example: search_docs {"query": "import data", "section": "action"}',
       inputSchema: {
         query: z.string().min(1).describe("Words to search for"),
@@ -70,7 +72,8 @@ export function register(server: McpServer, ctx: ToolContext): void {
       description:
         "Read one Tasker userguide page as Markdown. Accepts a slug (help__ah_import_data), a " +
         "bare help name (ah_import_data) or a page title (Import Data). Links inside a page " +
-        "point at slugs that can be passed to get_doc again. " +
+        "point at slugs that can be passed to get_doc again, with or without their #anchor. " +
+        "A sectioned manual (scenes_v2) returns an index of its section pages. " +
         'Example: get_doc {"slug": "ah_import_data"}',
       inputSchema: {
         slug: z.string().min(1).describe("Slug, bare help name (ah_*, eh_*, sh_*) or title"),
@@ -86,7 +89,8 @@ export function register(server: McpServer, ctx: ToolContext): void {
       title: "Refresh Tasker docs",
       description:
         "Re-download the userguide index and search data (the cached copy is kept if the " +
-        "download fails). Pages already cached on disk are kept as they are. " +
+        "download fails). When the published guide changed, pages cached on disk are dropped " +
+        "and downloaded again on demand. " +
         "Example: refresh_docs {}",
       inputSchema: {},
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },

@@ -246,6 +246,68 @@ describe("DocsStore.refresh", () => {
       "Docs not cached yet and download failed (offline); check network or run refresh_docs later",
     );
   });
+
+  it("drops cached pages when the published content changed, so they are read again", async () => {
+    const files = new Map(remote);
+    const counts: Record<string, number> = {};
+    await store({ fetch: makeFetch({ files, counts }) }).get("variables");
+    const cached = join(home, "docs", "pages", "variables.md");
+    expect(existsSync(cached)).toBe(true);
+
+    // Same content upstream: the cached page stays.
+    await store({ fetch: makeFetch({ files, counts }) }).refresh();
+    expect(existsSync(cached)).toBe(true);
+
+    // The page was rewritten upstream: a new store with the old disk cache picks it up.
+    const next = buildOutputs(
+      crawled.map((p) => (p.slug === "variables" ? { ...p, markdown: "Rewritten body." } : p)),
+      new Date("2026-02-01T00:00:00Z"),
+    );
+    files.set("index.json", JSON.stringify(next.index));
+    files.set("search.json", JSON.stringify(next.search));
+    for (const [k, v] of next.files) files.set(k, v);
+    const s = store({ fetch: makeFetch({ files, counts }) });
+    expect((await s.refresh()).generated).toBe("2026-02-01T00:00:00.000Z");
+    expect(existsSync(cached)).toBe(false);
+    expect((await s.get("variables")).markdown).toContain("Rewritten body.");
+    expect(counts["pages/variables.md"]).toBe(2);
+  });
+
+  it("drops cached pages when the old index has no content hash", async () => {
+    const old = structuredClone(built.index);
+    delete old.hash;
+    mkdirSync(join(home, "docs", "pages"), { recursive: true });
+    writeFileSync(join(home, "docs", "index.json"), JSON.stringify(old));
+    writeFileSync(join(home, "docs", "search.json"), JSON.stringify(built.search));
+    writeFileSync(join(home, "docs", "pages", "variables.md"), "# Variables\n\nSource: x\n\nold");
+    const s = store();
+    expect((await s.get("variables")).markdown).toContain("old");
+    await s.refresh();
+    expect((await s.get("variables")).markdown).toContain("Global variables have capitals");
+  });
+
+  it("survives a pages directory that cannot be removed", async () => {
+    const s = store();
+    await s.ensure();
+    const idx = JSON.parse(readFileSync(join(home, "docs", "index.json"), "utf8"));
+    idx.hash = "different";
+    writeFileSync(join(home, "docs", "index.json"), JSON.stringify(idx));
+    const blocked = new DocsStore({ home, baseUrl: BASE, fetch: makeFetch() });
+    // A NUL byte makes every fs call on the path throw, on every platform.
+    Object.defineProperty(blocked, "dir", { value: join(home, "docs\0") });
+    await expect(blocked.refresh()).resolves.toMatchObject({ pages: 6 });
+  });
+});
+
+describe("DocsStore.get links", () => {
+  it("accepts a slug with an anchor, as links inside pages are written", async () => {
+    const s = store();
+    expect((await s.get("variables#arrays")).slug).toBe("variables");
+    expect((await s.get("ah_import_data#x")).slug).toBe("help__ah_import_data");
+    await expect(s.get("nonesuch#x")).rejects.toThrow('No doc page matches "nonesuch"');
+    await expect(s.get("#x")).rejects.toThrow('No doc page matches "#x"');
+    await expect(s.get("nonesuch")).rejects.toThrow('No doc page matches "nonesuch"');
+  });
 });
 
 describe("DocsStore.list and search", () => {

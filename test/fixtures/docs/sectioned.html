@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tasker Sample Builder Manual</title>
+  <style>body { margin: 0; }</style>
+</head>
+<body>
+  <nav class="sidebar"><h2>Sample Builder</h2></nav>
+  <main class="content" id="content">
+    <div id="loading-indicator"><span>Loading sections...</span></div>
+  </main>
+  <script>
+    (function () {
+      'use strict';
+      var SECTIONS_DIR = 'manual/';
+      var content = document.getElementById('content');
+      function padNum(n) { return (n < 10 ? '0' : '') + n; }
+      function loadSections(n) {
+        var file = SECTIONS_DIR + padNum(n) + '.html';
+        return fetch(file, { method: 'HEAD' }).then(function (probe) {
+          if (!probe.ok) return;
+          return fetch(file).then(function (r) { return r.text(); }).then(function (html) {
+            content.insertAdjacentHTML('beforeend', html);
+            return loadSections(n + 1);
+          });
+        });
+      }
+      loadSections(1);
+    })();
+  </script>
+</body>
+</html>
