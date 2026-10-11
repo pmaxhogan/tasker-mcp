@@ -314,6 +314,11 @@ export function htmlToMarkdown(html: string, opts: ConvertOptions): ConvertResul
         break;
       case "ul":
       case "ol":
+        // A list inside a table cell stays in the cell, as plain words.
+        if (row) {
+          inline += " ";
+          break;
+        }
         flush();
         if (!closing) listStack.push({ ordered: name === "ol", n: 0 });
         else listStack.pop();
@@ -321,6 +326,10 @@ export function htmlToMarkdown(html: string, opts: ConvertOptions): ConvertResul
         if (listStack.length === 0) inLi = false;
         break;
       case "li":
+        if (row) {
+          inline += " ";
+          break;
+        }
         flush();
         if (!closing) {
           const top = listStack[listStack.length - 1] ?? { ordered: false, n: 0 };
@@ -367,6 +376,7 @@ export function htmlToMarkdown(html: string, opts: ConvertOptions): ConvertResul
       case "body":
       case "center":
         if (!row) flush();
+        else inline += " ";
         break;
       default:
         break;

@@ -6,7 +6,7 @@
  * branch; this class downloads that branch's files on first use and caches
  * them under `<home>/docs/`.
  */
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { log } from "../log.ts";
 import {
@@ -101,8 +101,15 @@ export class DocsStore {
     return this.loading;
   }
 
-  /** Re-downloads index.json and search.json. Keeps the old cache if that fails. */
+  /**
+   * Re-downloads index.json and search.json. Keeps the old cache if that fails.
+   * Cached pages are dropped when the published content changed (or when the
+   * old index cannot tell), so a page that was rewritten upstream is fetched
+   * again instead of being served stale forever.
+   */
   async refresh(): Promise<{ pages: number; generated: string }> {
+    if (!this.index) this.readIndexFromDisk();
+    const oldHash = this.index?.hash;
     let idx: DocsIndex;
     let search: SearchIndex;
     try {
@@ -115,6 +122,7 @@ export class DocsStore {
       }
       throw offlineError(reason(e));
     }
+    if (!oldHash || oldHash !== idx.hash) this.dropCachedPages();
     this.writeAtomic("index.json", JSON.stringify(idx));
     this.writeAtomic("search.json", JSON.stringify(search));
     this.index = idx;
@@ -179,7 +187,7 @@ export class DocsStore {
 
   async get(slugOrName: string): Promise<DocPage> {
     await this.ensure();
-    const entry = this.resolve(slugOrName);
+    const entry = this.resolveLink(slugOrName);
     const markdown = await this.pageMarkdown(entry.slug);
     return { slug: entry.slug, title: entry.title, url: entry.url, markdown };
   }
@@ -269,6 +277,14 @@ export class DocsStore {
     return inflight;
   }
 
+  private dropCachedPages(): void {
+    try {
+      rmSync(join(this.dir, "pages"), { recursive: true, force: true });
+    } catch (e) {
+      log("docs cache cleanup failed", { error: reason(e) });
+    }
+  }
+
   private writeAtomic(rel: string, data: string): void {
     const dest = join(this.dir, rel);
     try {
@@ -330,6 +346,17 @@ export class DocsStore {
     }
     scored.sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1));
     return scored.slice(0, limit).map((x) => x[1]);
+  }
+
+  /** Like resolve(), and also takes a link as pages write them: `slug#anchor`. */
+  private resolveLink(input: string): PageEntry {
+    try {
+      return this.resolve(input);
+    } catch (e) {
+      const bare = input.replace(/#.*$/, "").trim();
+      if (!bare || bare === input.trim()) throw e;
+      return this.resolve(bare);
+    }
   }
 
   /** Fuzzy slug resolution: full slug, bare `ah_name`, "import data", or a title. */

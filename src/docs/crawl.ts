@@ -14,6 +14,14 @@ import {
   type DocsIndex,
   type SearchIndex,
 } from "./pages.ts";
+import {
+  MAX_SECTIONS,
+  buildSectionedManual,
+  remapAnchors,
+  sectionFileUrl,
+  sectionsDirOf,
+  type RawSection,
+} from "./sections.ts";
 import { asciiDashes } from "./tokenize.ts";
 
 export const USER_AGENT = "tasker-mcp-docs-sync (+https://github.com/pmaxhogan/tasker-mcp)";
@@ -107,7 +115,8 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlResult> {
   const start = opts.startUrls ?? START_URLS;
   const skipped: CrawlResult["skipped"] = [];
 
-  const get = async (url: string): Promise<string | null> => {
+  /** One polite GET with retries. A 4xx is final and is reported as `missing`. */
+  const request = async (url: string): Promise<{ body: string } | { missing: string }> => {
     let lastErr = "";
     for (let attempt = 0; attempt <= retries; attempt++) {
       if (attempt > 0) await sleep(delay * 2 ** attempt);
@@ -116,20 +125,27 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlResult> {
           headers: { "user-agent": USER_AGENT },
           signal: AbortSignal.timeout(30_000),
         });
-        if (res.status >= 400 && res.status < 500) {
-          skipped.push({ url, reason: `HTTP ${res.status}` });
-          return null;
-        }
+        if (res.status >= 400 && res.status < 500) return { missing: `HTTP ${res.status}` };
         if (!res.ok) {
           lastErr = `HTTP ${res.status}`;
           continue;
         }
-        return new TextDecoder("utf-8").decode(await res.arrayBuffer());
+        return { body: new TextDecoder("utf-8").decode(await res.arrayBuffer()) };
       } catch (e) {
         lastErr = e instanceof Error ? e.message : String(e);
       }
     }
-    skipped.push({ url, reason: lastErr });
+    throw new Error(lastErr);
+  };
+
+  const get = async (url: string): Promise<string | null> => {
+    try {
+      const res = await request(url);
+      if ("body" in res) return res.body;
+      skipped.push({ url, reason: res.missing });
+    } catch (e) {
+      skipped.push({ url, reason: (e as Error).message });
+    }
     return null;
   };
 
@@ -163,8 +179,40 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlResult> {
   };
   start.forEach(enqueue);
 
+  /**
+   * Fetches the numbered fragments of a sectioned manual, in order, the way
+   * the page's own loader does: stop at the first file that is missing. A
+   * fragment that fails for another reason also ends the run, keeping the
+   * sections already fetched, so one bad file never costs the whole manual.
+   */
+  const fetchSections = async (dirUrl: string): Promise<RawSection[]> => {
+    const out: RawSection[] = [];
+    for (let n = 1; n <= MAX_SECTIONS; n++) {
+      const url = sectionFileUrl(dirUrl, n);
+      if (!isCrawlable(url) || !robotsAllows(rules, new URL(url).pathname)) break;
+      seen.add(url);
+      await sleep(delay);
+      try {
+        const res = await request(url);
+        if (!("body" in res)) break;
+        out.push({ n, url, html: res.body });
+      } catch (e) {
+        skipped.push({ url, reason: (e as Error).message });
+        break;
+      }
+    }
+    return out;
+  };
+
+  const rewriteLink = (abs: string): string => {
+    const t = new URL(abs);
+    const s = t.hostname === "tasker.joaoapps.com" ? slugFromUrl(abs) : null;
+    return s ? s + (t.hash || "") : abs;
+  };
+
   const pages: CrawledPage[] = [];
   const slugs = new Set<string>();
+  const anchors = new Map<string, Map<string, string>>();
   let fetched = 0;
   while (queue.length && (opts.limit === undefined || pages.length < opts.limit)) {
     const url = queue.shift() as string;
@@ -173,16 +221,32 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlResult> {
     if (html === null) continue;
     const isDir = new URL(url).pathname.endsWith("/");
     const slug = isDir ? null : slugFromUrl(url);
-    const conv = htmlToMarkdown(html, {
-      baseUrl: url,
-      rewriteLink: (abs) => {
-        const t = new URL(abs);
-        const s = t.hostname === "tasker.joaoapps.com" ? slugFromUrl(abs) : null;
-        return s ? s + (t.hash || "") : abs;
-      },
-    });
+    const conv = htmlToMarkdown(html, { baseUrl: url, rewriteLink });
     conv.links.forEach(enqueue);
     if (isDir || !slug) continue;
+    const sectionsDir = slugs.has(slug) ? null : sectionsDirOf(html, url);
+    if (sectionsDir) {
+      const title = conv.title || slug;
+      const manual = buildSectionedManual(
+        { slug, title, url },
+        await fetchSections(sectionsDir),
+        rewriteLink,
+      );
+      const fresh = manual.pages.filter((p) => !slugs.has(p.slug));
+      if (fresh.length) {
+        manual.links.forEach(enqueue);
+        anchors.set(slug, manual.anchors);
+        slugs.add(slug);
+        say(`${pages.length + 1} ${slug} (${fresh.length} sections)`);
+        pages.push({ slug, title, url, markdown: asciiDashes(manual.indexMarkdown) });
+        for (const p of fresh) {
+          slugs.add(p.slug);
+          pages.push({ ...p, title: asciiDashes(p.title), markdown: asciiDashes(p.markdown) });
+        }
+        continue;
+      }
+      // No section could be read: fall through and keep the shell as a plain page.
+    }
     if (!conv.markdown.trim()) {
       skipped.push({ url, reason: "empty page" });
       continue;
@@ -198,6 +262,7 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlResult> {
     say(`${pages.length + 1} ${slug}`);
     pages.push({ slug, title, url, markdown: asciiDashes(conv.markdown) });
   }
+  for (const p of pages) p.markdown = remapAnchors(p.markdown, anchors);
   pages.sort((a, b) => (a.slug < b.slug ? -1 : 1));
   return { pages, skipped };
 }
