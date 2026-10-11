@@ -1,6 +1,7 @@
 {
   "name": "@pmaxhogan/tasker-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "//version": "Floor for the release job (scripts/next-version.mjs). 0.1.1, not 0.1.0: 0.1.0 was staged on npm during the first manual publish and never released, and npm refuses to publish over a staged version.",
   "description": "MCP server giving AI agents full read, edit, and run access to Tasker on Android over its HTTP Request event and XML round-trip.",
   "type": "module",
   "license": "MIT",
