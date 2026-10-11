@@ -73,14 +73,40 @@ jobs:
       # npm exchanges the job's OIDC identity for a short-lived publish token
       # and attaches provenance itself. Always `npm publish`, never
       # `npm stage publish`: releases must not wait for a human.
+      #
+      # A version stays invisible to `npm view` for a few minutes after it is
+      # published, so a second push inside that window computes the same
+      # version and npm answers 409 ("cannot publish over previously staged
+      # version"). On that conflict, take the next patch and try again.
       - name: Publish
-        if: steps.auth.outputs.armed == 'true'
-        run: npm publish --access public
-
-      - name: Tag the release
+        id: publish
         if: steps.auth.outputs.armed == 'true'
         env:
           NEXT: ${{ steps.version.outputs.next }}
         run: |
-          git tag "v$NEXT"
-          git push origin "v$NEXT"
+          # Without pipefail the pipe into tee would hide a failed publish.
+          set -o pipefail
+          version="$NEXT"
+          for attempt in 1 2 3 4 5; do
+            npm version "$version" --no-git-tag-version --allow-same-version > /dev/null
+            if npm publish --access public 2>&1 | tee publish.log; then
+              echo "published=$version" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if ! grep -qiE "E409|cannot publish over" publish.log; then
+              exit 1
+            fi
+            taken="$version"
+            version=$(node scripts/next-version.mjs "$taken" "$taken")
+            echo "::notice::$taken is already taken on the registry; trying $version"
+          done
+          echo "::error::gave up after 5 version conflicts"
+          exit 1
+
+      - name: Tag the release
+        if: steps.auth.outputs.armed == 'true'
+        env:
+          PUBLISHED: ${{ steps.publish.outputs.published }}
+        run: |
+          git tag "v$PUBLISHED"
+          git push origin "v$PUBLISHED"
