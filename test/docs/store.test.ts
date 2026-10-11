@@ -327,6 +327,27 @@ describe("DocsStore.list and search", () => {
     const t = (await s.search("wifi"))[0]!;
     expect(t.snippet).toBe("WiFi Tether");
   });
+  it("never reads a snippet through an unsafe slug from a tampered index", async () => {
+    const page = {
+      slug: "zebrapage",
+      title: "Zebra",
+      url: "https://tasker.joaoapps.com/userguide/en/zebra.html",
+      markdown: "zebra stripes",
+    };
+    const b = buildOutputs([page, ...crawled]);
+    const idx = structuredClone(b.index);
+    const entry = idx.pages.find((p) => p.slug === "zebrapage")!;
+    entry.slug = "../secret";
+    const files = new Map<string, string>([
+      ["index.json", JSON.stringify(idx)],
+      ["search.json", JSON.stringify(b.search)],
+    ]);
+    mkdirSync(join(home, "docs"), { recursive: true });
+    writeFileSync(join(home, "docs", "secret.md"), "# S\n\nSource: x\n\nzebra private text");
+    const hit = (await store({ fetch: makeFetch({ files }) }).search("zebra"))[0]!;
+    expect(hit.slug).toBe("../secret");
+    expect(hit.snippet).toBe("Zebra");
+  });
 });
 
 describe("DocsStore.get fuzzy matching", () => {

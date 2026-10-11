@@ -11,6 +11,8 @@ export const ELSE = 43;
 export const END_IF = 38;
 export const FOR = 39;
 export const END_FOR = 40;
+/** What the task editor calls an Else (43) with a condition. */
+export const ELSE_IF_NAME = "Else If";
 
 /**
  * Tasker writes plugin actions as code 1000 (Tasker-XML-Info) or, in real exports, as large
@@ -117,6 +119,9 @@ export class SpecIndex {
         this.addName(a.resName.replace(/^an_/, ""), a);
       }
     }
+    // The task editor shows an Else that carries a condition as "Else If"; it is code 43 too.
+    const elseSpec = this.codes.get(ELSE);
+    if (elseSpec) this.addName(ELSE_IF_NAME, elseSpec);
     // First entry wins: events.json lists code 1000 twice (Display Unlocked, Plugin).
     for (const e of extras.events ?? [])
       if (!this.events.has(e.code)) this.events.set(e.code, e.name);

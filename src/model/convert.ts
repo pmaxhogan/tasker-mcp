@@ -13,10 +13,12 @@
  *
  * Anything not understood travels as raw XML: unknown arg elements become
  * `{kind: "Raw"}`, and an action with an unknown code or an unrecognized child
- * keeps its whole XML in `raw`, which actionToElement writes back verbatim.
+ * keeps its whole XML in `raw`. actionToElement writes that back verbatim
+ * unless the structured fields next to it were edited; then it applies the
+ * edits onto the parsed raw element and keeps every other child as-is.
  */
 
-import { computeDepths, PLUGIN_CODE_MIN } from "../edit/blocks.ts";
+import { computeDepths, ELSE, PLUGIN_CODE_MIN } from "../edit/blocks.ts";
 import type { ActionSpec, ArgSpec } from "../spec/types.ts";
 import {
   attr,
@@ -271,7 +273,12 @@ export function actionToJson(
   if (label !== undefined) action.label = label;
   action.continueOnError = childText(el, "se") === "false";
 
+  // A ve other than 7 never occurs in the fixtures; such an action stays raw
+  // (still editable: see actionToElement) so its ve is written back unchanged.
   let understood = hasOnlyAttrs(el, ["sr", "ve"]) && attr(el, "ve") === "7";
+  const coll = childText(el, "coll");
+  if (coll === "true" || coll === "false") action.collapsed = coll === "true";
+  else if (coll !== undefined) understood = false;
   const args: ArgJson[] = [];
   for (const k of children(el)) {
     const id = srIndex(attr(k, "sr"), "arg");
@@ -292,6 +299,10 @@ export function actionToJson(
     }
   }
   args.sort((a, b) => a.id - b.id);
+  // The task editor names an Else with a condition "Else If" (same code 43).
+  if (code === ELSE && action.condition !== undefined && spec !== undefined) {
+    action.name = "Else If";
+  }
   // Re-add args after the scalar fields so they read last.
   delete (action as { args?: ArgJson[] }).args;
   action.args = args;
@@ -429,6 +440,27 @@ export interface ToElementOptions {
 }
 
 /**
+ * Defaults the Tasker 6.6.20 task editor gives a new action where the spec table says
+ * otherwise, keyed "code:argId". Observed in GUI-built actions (test/fixtures/emulator,
+ * docs/conformance.md): Perform Task's Priority is the variable `%priority` (run at the
+ * caller's priority), and Show Scene ticks Blocking Overlay + and Overlay +. Used by
+ * actionToElement and mutate.fillDefaults when an arg is left out.
+ */
+const GUI_DEFAULTS: ReadonlyMap<string, number | string | boolean> = new Map<
+  string,
+  number | string | boolean
+>([
+  ["130:1", "%priority"],
+  ["47:9", true],
+  ["47:10", true],
+]);
+
+/** The task editor's default for an arg, when it differs from the spec table's. */
+export function guiDefault(code: number, argId: number): number | string | boolean | undefined {
+  return GUI_DEFAULTS.get(`${code}:${argId}`);
+}
+
+/**
  * Default value of an Int arg from its MapTasker spec string "min:max:default"
  * (e.g. Variable Set's Max Rounding Digits "0:10:3" -> 3), else 0 clamped to min.
  */
@@ -439,9 +471,13 @@ export function intDefault(spec: ArgSpec): number {
   return 0;
 }
 
-/** Default of a Boolean arg: MapTasker writes "true"/"false" in the spec string; else false. */
+/**
+ * Default of a Boolean arg: MapTasker writes "true"/"false" in the spec string; else false.
+ * "bosta" marks the "Structure Output (JSON, etc)" checkbox, which the Tasker 6.6.20 editor
+ * turns on for a new action (GUI exports in test/fixtures/emulator; docs/conformance.md).
+ */
 export function boolDefault(spec: ArgSpec): boolean {
-  return spec.spec === "true";
+  return spec.spec === "true" || spec.spec === "bosta";
 }
 
 /**
@@ -495,8 +531,15 @@ export function argToElement(arg: ArgJson): XmlElement {
     }
     case "Bool":
       return createElement("Int", { sr, val: arg.value ? "1" : "0" });
-    case "Raw":
-      return rawElement(arg.raw, sr);
+    case "Raw": {
+      const el = rawElement(arg.raw, sr);
+      if (el.name !== arg.tag) {
+        throw new Error(
+          `arg${arg.id}: raw XML is a <${el.name}> element but its tag says ${JSON.stringify(arg.tag)}`,
+        );
+      }
+      return el;
+    }
   }
 }
 
@@ -530,7 +573,12 @@ export function conditionListToElement(cl: ConditionListJson): XmlElement {
  * An ActionJson as an `<Action>` element laid out exactly like Tasker writes
  * it: `code`, `label`, `on` (only when disabled), `se` (only when continuing
  * after error), args sorted lexicographically by `sr`, `ConditionList` last.
- * With `action.raw` the raw XML is used verbatim (only its `sr` is fixed).
+ * With `action.raw` the raw XML is used verbatim (only its `sr` is fixed)
+ * when code, enabled, label, continueOnError, collapsed, condition and args
+ * all agree with it; otherwise those edits are applied onto the raw element
+ * (args the JSON omits are kept) and anything unmodelled stays as it was.
+ * Throws when the raw XML is not an `<Action>`, the code was changed, or a
+ * Raw arg's XML root does not match its `tag`.
  */
 export function actionToElement(
   action: ActionJson,
@@ -540,9 +588,10 @@ export function actionToElement(
   const index = opts.index ?? action.index ?? 0;
   const depth = opts.depth ?? ACTION_DEPTH;
   const sr = `act${index}`;
-  if (action.raw !== undefined) return rawElement(action.raw, sr);
+  if (action.raw !== undefined) return rawActionToElement(action, action.raw, lookup, index, depth);
 
   const kids: XmlElement[] = [leaf("code", String(action.code))];
+  if (action.collapsed !== undefined) kids.push(leaf("coll", String(action.collapsed)));
   if (action.label !== undefined) kids.push(leaf("label", action.label, true));
   if (action.enabled === false) kids.push(leaf("on", "false"));
   if (action.continueOnError === true) kids.push(leaf("se", "false"));
@@ -560,7 +609,15 @@ export function actionToElement(
   if (opts.fillDefaults !== false && spec !== undefined) {
     for (const s of spec.args) {
       if (seen.has(s.id)) continue;
-      const d = defaultArgElement(s);
+      const gui = guiDefault(action.code, s.id);
+      const d =
+        gui === undefined
+          ? defaultArgElement(s)
+          : argToElement(
+              typeof gui === "boolean"
+                ? { id: s.id, kind: "Bool", value: gui }
+                : { id: s.id, kind: "Int", value: gui },
+            );
       if (d === undefined) {
         opts.warnings?.push(
           `action ${index} (${spec.name}): arg${s.id} "${s.name}" omitted; no default for its type, Tasker fills it on import`,
@@ -575,6 +632,153 @@ export function actionToElement(
   }
   const el = createElement("Action", { sr, ve: "7" }, kids);
   sortChildren(el);
+  return formatElement(el, depth);
+}
+
+/** Comparable form of an arg: Bool and numeric Int collapse, raw XML ignores inter-tag whitespace. */
+function argCompareKey(a: ArgJson): string {
+  switch (a.kind) {
+    case "Str":
+      return `Str:${a.value}`;
+    case "Int":
+      return `Int:${String(a.value)}`;
+    case "Bool":
+      return `Int:${a.value ? 1 : 0}`;
+    case "Raw":
+      return `Raw:${a.tag}:${normalizeRaw(a.raw)}`;
+  }
+}
+
+/** Collapse inter-tag whitespace and drop the root `sr`, so raw XML compares by content. */
+export function normalizeRaw(raw: string): string {
+  return raw
+    .trim()
+    .replace(/>\s+</g, "><")
+    .replace(/^(<[A-Za-z][\w.-]*)\s+sr="[^"]*"/, "$1");
+}
+
+function conditionKey(c: ConditionListJson | undefined): string {
+  if (c === undefined || c.conditions.length === 0) return "";
+  const joins = c.conditions.slice(1).map((_, i) => (c.joins?.[i] ?? "and").toLowerCase());
+  return JSON.stringify({ c: c.conditions.map((x) => [x.lhs, x.op, x.rhs ?? ""]), j: joins });
+}
+
+/** Parse an action's raw XML, insisting on an `<Action>` root. */
+function parseRawAction(raw: string, index: number): XmlElement {
+  const el = parseFragment(raw);
+  if (el.name !== "Action") {
+    throw new Error(`action ${index}: raw XML must be an <Action> element, got <${el.name}>`);
+  }
+  return el;
+}
+
+/**
+ * What is left of a raw action once everything the structured layer models
+ * (code, label, on, se, coll, args, a parseable ConditionList) and the root
+ * `sr` are removed, normalized for comparison. verify.ts compares this so a
+ * correctly applied structured edit does not read as a raw XML difference.
+ */
+export function rawActionResidue(raw: string): string {
+  const el = parseFragment(raw);
+  el.children = el.children.filter((c) => {
+    if (c.type !== "element") return !isWhitespace(c);
+    if (srIndex(attr(c, "sr"), "arg") !== undefined) return false;
+    if (c.name === "ConditionList") {
+      return attr(c, "sr") !== "if" || conditionListToJson(c) === undefined;
+    }
+    return !ACTION_KNOWN.has(c.name);
+  });
+  return normalizeRaw(serializeElement(el));
+}
+
+/**
+ * An action that carries `raw`: the raw XML verbatim when the structured
+ * fields agree with it, else the raw element with the structured edits
+ * applied (unknown children kept, Tasker child order restored). Throws when
+ * an edit cannot be applied safely.
+ */
+function rawActionToElement(
+  action: ActionJson,
+  raw: string,
+  lookup: SpecLookup,
+  index: number,
+  depth: number,
+): XmlElement {
+  const el = parseRawAction(raw, index);
+  const fail = (why: string): Error =>
+    new Error(`cannot apply structured edits to action ${index}: ${why}; edit its raw XML instead`);
+  const from = actionToJson(el, lookup);
+  const edits: Array<() => void> = [];
+  const drop = (pred: (k: XmlElement) => boolean): void => {
+    el.children = el.children.filter((c) => c.type !== "element" || !pred(c));
+  };
+
+  if (action.code !== from.code) {
+    throw fail(`code ${action.code} does not match the raw XML's code ${from.code}`);
+  }
+  const enabled = action.enabled ?? true;
+  if (enabled !== from.enabled) {
+    edits.push(() => {
+      drop((k) => k.name === "on");
+      if (!enabled) el.children.push(leaf("on", "false"));
+    });
+  }
+  if (action.label !== from.label) {
+    const label = action.label;
+    edits.push(() => {
+      drop((k) => k.name === "label");
+      if (label !== undefined) el.children.push(leaf("label", label, true));
+    });
+  }
+  const cont = action.continueOnError ?? false;
+  if (cont !== from.continueOnError) {
+    edits.push(() => {
+      drop((k) => k.name === "se");
+      if (cont) el.children.push(leaf("se", "false"));
+    });
+  }
+  const collapsed = action.collapsed;
+  if (collapsed !== undefined && collapsed !== from.collapsed) {
+    edits.push(() => {
+      drop((k) => k.name === "coll");
+      el.children.push(leaf("coll", String(collapsed)));
+    });
+  }
+  if (conditionKey(action.condition) !== conditionKey(from.condition)) {
+    const cond = action.condition;
+    edits.push(() => {
+      drop((k) => k.name === "ConditionList" && attr(k, "sr") === "if");
+      if (cond !== undefined && cond.conditions.length > 0) {
+        el.children.push(conditionListToElement(cond));
+      }
+    });
+  }
+  const seen = new Set<number>();
+  for (const a of action.args) {
+    if (seen.has(a.id)) continue;
+    seen.add(a.id);
+    const old = from.args.find((x) => x.id === a.id);
+    if (old !== undefined && argCompareKey(old) === argCompareKey(a)) continue;
+    const next = argToElement(a);
+    edits.push(() => {
+      drop((k) => attr(k, "sr") === `arg${a.id}`);
+      el.children.push(next);
+    });
+  }
+
+  if (edits.length === 0) {
+    setAttr(el, "sr", `act${index}`);
+    return markVerbatim(el);
+  }
+  // Only element children and indentation can be re-laid out safely.
+  if (el.children.some((c) => c.type !== "element" && !isWhitespace(c))) {
+    throw fail("its raw XML holds text or comments between child elements");
+  }
+  el.children = el.children.filter((c) => c.type === "element");
+  for (const apply of edits) apply();
+  setAttr(el, "sr", `act${index}`);
+  sortChildren(el);
+  el.selfClosing = false;
   return formatElement(el, depth);
 }
 

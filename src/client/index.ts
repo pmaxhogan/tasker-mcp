@@ -65,15 +65,25 @@ interface RequestOptions {
 
 const XML = "text/xml";
 
+/** Retries for a GET that hits Tasker's transient empty 503. */
+export const GET_RETRIES = 3;
+export const GET_RETRY_DELAY_MS = 1000;
+
+/** Per-attempt timeout for waitForPing. */
+export const PING_ATTEMPT_TIMEOUT_MS = 3000;
+
 export class TaskerClient {
   private readonly baseUrl: string;
-  private readonly token: string;
+  private token: string;
+  /** Every token this client has held; all are redacted from phone responses. */
+  private readonly secrets = new Set<string>();
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: TaskerClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.token = opts.token;
+    if (opts.token !== "") this.secrets.add(opts.token);
     this.timeoutMs = opts.timeoutMs;
     this.fetchImpl = opts.fetch ?? globalThis.fetch;
   }
@@ -135,8 +145,20 @@ export class TaskerClient {
     return this.text("GET", "/runlog");
   }
 
-  rotateToken(): Promise<{ token: string }> {
-    return this.json("POST", "/token/rotate");
+  /**
+   * Asks the phone for a new token and uses it for every later call. The old
+   * token stays in the redaction set in case the phone echoes it back.
+   */
+  async rotateToken(): Promise<{ token: string }> {
+    const res = await this.json<{ token: string }>("POST", "/token/rotate");
+    if (typeof res.token === "string" && res.token !== "") this.setToken(res.token);
+    return res;
+  }
+
+  /** Use `token` for subsequent calls (e.g. after a rotation done elsewhere). */
+  setToken(token: string): void {
+    this.token = token;
+    if (token !== "") this.secrets.add(token);
   }
 
   /** Polls /ping until the phone answers (used after replaceConfig restarts its server). */
@@ -147,7 +169,10 @@ export class TaskerClient {
       try {
         const remaining = Math.max(1, deadline - Date.now());
         return await this.json<PingResult>("GET", "/ping", {
-          timeoutMs: Math.min(this.timeoutMs, remaining),
+          // A ping sent while Tasker restarts can be accepted and never
+          // answered (observed after /config), so each attempt gets a short
+          // timeout instead of the whole budget.
+          timeoutMs: Math.min(this.timeoutMs, remaining, PING_ATTEMPT_TIMEOUT_MS),
         });
       } catch (err) {
         if (!(err instanceof TaskerConnectionError || err instanceof TaskerHttpError)) throw err;
@@ -199,7 +224,33 @@ export class TaskerClient {
     return (await this.request(method, route, {})).text;
   }
 
+  /**
+   * Sends a request. GETs are retried (up to GET_RETRIES times, GET_RETRY_DELAY_MS
+   * apart) when Tasker answers 503 with an empty body: its HTTP server does that
+   * for a moment after a configuration import, before the profile is active
+   * again (observed on 6.6.20). Our own 503s always carry a JSON body.
+   */
   private async request(
+    method: string,
+    route: string,
+    opts: RequestOptions,
+  ): Promise<{ status: number; text: string }> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.requestOnce(method, route, opts);
+      } catch (err) {
+        const transient =
+          method === "GET" &&
+          err instanceof TaskerHttpError &&
+          err.status === 503 &&
+          err.body.trim() === "";
+        if (!transient || attempt >= GET_RETRIES) throw err;
+        await new Promise((r) => setTimeout(r, GET_RETRY_DELAY_MS));
+      }
+    }
+  }
+
+  private async requestOnce(
     method: string,
     route: string,
     opts: RequestOptions,
@@ -244,7 +295,11 @@ export class TaskerClient {
 
   /** Never let the token leak, even if the phone echoes it back. */
   private redact(s: string): string {
-    return this.token === "" ? s : s.split(this.token).join("[redacted]");
+    let out = s;
+    // Longest first, so a token that contains another is redacted whole.
+    const all = [...this.secrets].sort((a, b) => b.length - a.length);
+    for (const t of all) out = out.split(t).join("[redacted]");
+    return out;
   }
 }
 

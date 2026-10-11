@@ -35,9 +35,12 @@ reproduces them byte for byte.
 - `<se>false</se>` means "Continue Task After Error" is ON; when `<se>` is
   absent the task stops on error (MapTasker `taskedit.py`,
   `action_continues_after_error`).
-- `<coll>false</coll>`: collapsed in the editor; only on If (37) / For (39).
+- `<coll>true</coll>`: the block is folded in the editor; `<coll>false</coll>` is
+  written once a folded block is unfolded again; absent on a block never folded.
+  Only on If (37) / For (39). Verified in the GUI, see `docs/conformance.md`.
 - Block actions: If 37, Else 43, Else If is 43 with a ConditionList, End If 38,
-  For 39, End For 40. Else/End If usually have no args.
+  For 39, End For 40. Else/End If usually have no args. The task editor shows
+  a 43 that carries a ConditionList as "Else If".
 
 ### Arg elements (position is `sr="argN"`)
 
@@ -69,7 +72,10 @@ Booleans are `Int` with `val="0"`/`"1"`.
 </ConditionList>
 ```
 
-`boolN` joiners (`And`/`Or`) appear only with 2+ conditions. `rhs` may be
+`boolN` joiners appear only with 2+ conditions. The editor offers And, Or, Xor
+and a "High Precedence" variant of each. Observed in GUI exports: `And`, `Or`,
+`And2`, `Or2`, `Xor2`, shown in the task list as `&`, `|`, `&+`, `|+`, `X|+`.
+Plain Xor was not exported in the conformance wave (presumably `Xor`). `rhs` may be
 `<rhs></rhs>` or `<rhs/>`. `op` is an integer code; see `src/model/ops.ts`.
 
 ## Task
