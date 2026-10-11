@@ -54,6 +54,11 @@ The scripts in `scripts/device/` default `ANDROID_SERIAL` to `emulator-5554` so 
 forgotten serial never lands on a real phone. Run `TaskerMCP.Setup` on the
 emulator once; it writes the token to `/sdcard/Download/tasker-mcp-token.txt`.
 
+To build an emulator target from nothing, run
+`node scripts/device/setup-emulator.mjs <Tasker.apk>` (install, onboarding,
+preferences, project import, token). Always start the emulator with
+`-no-snapshot`: quick boot reloads an old snapshot and wipes the Tasker install.
+
 ## Regenerating the phone project
 
 `tasker/TaskerMCP.prj.xml` is generated. Edit `tasker/js/*.js` or
