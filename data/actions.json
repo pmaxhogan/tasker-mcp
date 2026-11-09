@@ -1,10 +1,10 @@
 {
   "meta": {
-    "generated": "2026-10-04",
-    "taskerVersion": "6.6.20",
+    "generated": "2026-11-09",
+    "taskerVersion": "6.7.8",
     "sources": [
       "MapTasker task_all_actions.json and category_descriptions.json (MIT, github.com/mctinker/Map-Tasker)",
-      "Tasker 6.6.20 (net.dinglisch.android.taskerm) APK string resources, tasker.joaoapps.com",
+      "Tasker 6.7.8 (net.dinglisch.android.taskerm) APK string resources, tasker.joaoapps.com",
       "Tasker-XML-Info Tasker_XML_Codes.md (MIT, github.com/Taskomater/Tasker-XML-Info)"
     ]
   },
@@ -565,7 +565,7 @@
         }
       ],
       "resName": "an_show_scene",
-      "help": "Blocking Overlay +: Will make an overlay scene show (and be interactive) on the lock screen and on some devices even in the Always-On-Display.\n\nIt'll also make scenes clickable even if they are on the status or notification bars\n\nIf you run this action with this option enabled and the Tasker accessibility service is not running an error notification will be shown and the action will error out.\n\nUseful if you want to show a blocking overlay that is interactive even if on the status/navigation bar and lock screen.\n\nIf this option is not enabled the scene will not show on the lock screen and won't be clickable if it's over the status/navigation bar."
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event.\n\nBlocking Overlay +: Will make an overlay scene show (and be interactive) on the lock screen and on some devices even in the Always-On-Display.\n\nIt'll also make scenes clickable even if they are on the status or notification bars\n\nIf you run this action with this option enabled and the Tasker accessibility service is not running an error notification will be shown and the action will error out.\n\nUseful if you want to show a blocking overlay that is interactive even if on the status/navigation bar and lock screen.\n\nIf this option is not enabled the scene will not show on the lock screen and won't be clickable if it's over the status/navigation bar."
     },
     {
       "code": 48,
@@ -1276,7 +1276,8 @@
           "label": "Continue Task Immediately"
         }
       ],
-      "resName": "an_scene_element_visibility"
+      "resName": "an_scene_element_visibility",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 66,
@@ -3383,7 +3384,8 @@
           "name": "Hide Notification Shade",
           "type": 3,
           "isMandatory": true,
-          "sortOrder": 13
+          "sortOrder": 13,
+          "label": "Hide Notification Shade"
         }
       ],
       "resName": "an_set_quick_settings"
@@ -5782,7 +5784,8 @@
           "label": "Respect Audio Focus"
         }
       ],
-      "resName": "an_say_wavenet"
+      "resName": "an_say_wavenet",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event.\n\nOverride API Key: Optional API key to use just for this call. Overrides the saved key for the chosen provider."
     },
     {
       "code": 335,
@@ -7887,7 +7890,8 @@
           "label": "Continue Task Immediately"
         }
       ],
-      "resName": "an_settings_panel"
+      "resName": "an_settings_panel",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 384,
@@ -9526,7 +9530,8 @@
           "type": 1,
           "isMandatory": false,
           "spec": "t:1:?",
-          "sortOrder": 2147482648
+          "sortOrder": 2147482648,
+          "label": "Event ID"
         },
         {
           "id": 2,
@@ -9842,7 +9847,8 @@
           "type": 3,
           "isMandatory": true,
           "sortOrder": 2147482648,
-          "helpResId": 2131956290
+          "helpResId": 2131956290,
+          "label": "Get Cell Info"
         }
       ],
       "resName": "an_get_network_info"
@@ -10134,7 +10140,8 @@
           "label": "Continue Task Immediately"
         }
       ],
-      "resName": "an_music_play"
+      "resName": "an_music_play",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 446,
@@ -10722,7 +10729,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482664,
-          "helpResId": 2131954314
+          "helpResId": 2131954314,
+          "label": "Separator"
         },
         {
           "id": 18,
@@ -10733,7 +10741,8 @@
           "label": "Continue Task Immediately"
         }
       ],
-      "resName": "an_widget_v2"
+      "resName": "an_widget_v2",
+      "help": "Separator: Character(s) used to separate the values in the multi-value fields (Texts, Images, Tasks, Commands, etc.). For example, set this to a semicolon so a comma can be used inside a value. Leave empty to separate on a comma.\n\nContinue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 462,
@@ -10798,7 +10807,8 @@
           "type": 1,
           "isMandatory": true,
           "spec": "t:1",
-          "sortOrder": 2147482650
+          "sortOrder": 2147482650,
+          "label": "Event ID"
         },
         {
           "id": 4,
@@ -10837,7 +10847,8 @@
           "label": "End Time"
         }
       ],
-      "resName": "an_edit_calendar_via_app"
+      "resName": "an_edit_calendar_via_app",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 464,
@@ -10877,7 +10888,8 @@
           "type": 1,
           "isMandatory": true,
           "spec": "t:1",
-          "sortOrder": 2147482650
+          "sortOrder": 2147482650,
+          "label": "Event ID"
         },
         {
           "id": 4,
@@ -10990,7 +11002,8 @@
           "type": 1,
           "isMandatory": true,
           "spec": "t:1",
-          "sortOrder": 2147482649
+          "sortOrder": 2147482649,
+          "label": "Event ID"
         },
         {
           "id": 3,
@@ -11048,7 +11061,8 @@
           "type": 1,
           "isMandatory": false,
           "spec": "t:1:?",
-          "sortOrder": 2147482649
+          "sortOrder": 2147482649,
+          "label": "Event ID"
         },
         {
           "id": 3,
@@ -11091,7 +11105,8 @@
           "type": 1,
           "isMandatory": true,
           "spec": "t:1",
-          "sortOrder": 2147482649
+          "sortOrder": 2147482649,
+          "label": "Event ID"
         },
         {
           "id": 3,
@@ -11175,7 +11190,8 @@
           "type": 1,
           "isMandatory": false,
           "spec": "t:1:?",
-          "sortOrder": 2147482649
+          "sortOrder": 2147482649,
+          "label": "Event ID"
         },
         {
           "id": 3,
@@ -11418,7 +11434,8 @@
           "type": 1,
           "isMandatory": true,
           "spec": "t:3",
-          "sortOrder": 2147482648
+          "sortOrder": 2147482648,
+          "label": "Command Pattern"
         },
         {
           "id": 2,
@@ -11429,7 +11446,8 @@
           "sortOrder": 2147482649,
           "label": "Timeout (Seconds)"
         }
-      ]
+      ],
+      "resName": "an_wait_for_command"
     },
     {
       "code": 479,
@@ -11452,7 +11470,8 @@
           "isMandatory": true,
           "spec": "sv2:1",
           "sortOrder": 2147482648,
-          "helpResId": 2131954251
+          "helpResId": 2131954251,
+          "label": "Name/JSON"
         },
         {
           "id": 2,
@@ -11461,7 +11480,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482649,
-          "helpResId": 2131954264
+          "helpResId": 2131954264,
+          "label": "Screen ID"
         },
         {
           "id": 3,
@@ -11470,7 +11490,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482650,
-          "helpResId": 2131954239
+          "helpResId": 2131954239,
+          "label": "Display Mode"
         },
         {
           "id": 4,
@@ -11479,7 +11500,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482651,
-          "helpResId": 2131954281
+          "helpResId": 2131954281,
+          "label": "X Position"
         },
         {
           "id": 5,
@@ -11488,7 +11510,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482652,
-          "helpResId": 2131954282
+          "helpResId": 2131954282,
+          "label": "Y Position"
         },
         {
           "id": 6,
@@ -11517,7 +11540,8 @@
           "isMandatory": true,
           "spec": "true",
           "sortOrder": 2147482655,
-          "helpResId": 2131954234
+          "helpResId": 2131954234,
+          "label": "Blocking Overlay"
         },
         {
           "id": 9,
@@ -11526,7 +11550,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482656,
-          "helpResId": 2131954262
+          "helpResId": 2131954262,
+          "label": "Show Animation"
         },
         {
           "id": 10,
@@ -11535,7 +11560,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482657,
-          "helpResId": 2131954236
+          "helpResId": 2131954236,
+          "label": "Dismiss Animation"
         },
         {
           "id": 11,
@@ -11544,7 +11570,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482658,
-          "helpResId": 2131954233
+          "helpResId": 2131954233,
+          "label": "Auto Dismiss (ms)"
         },
         {
           "id": 12,
@@ -11569,7 +11596,8 @@
           "type": 3,
           "isMandatory": true,
           "sortOrder": 2147482661,
-          "helpResId": 2131954250
+          "helpResId": 2131954250,
+          "label": "Long-Click Root To Dismiss"
         },
         {
           "id": 15,
@@ -11578,7 +11606,8 @@
           "isMandatory": false,
           "spec": "disp:1:?",
           "sortOrder": 2147482662,
-          "helpResId": 2131954238
+          "helpResId": 2131954238,
+          "label": "Physical Display"
         },
         {
           "id": 16,
@@ -11587,9 +11616,12 @@
           "isMandatory": true,
           "spec": "true",
           "sortOrder": 2147482663,
-          "helpResId": 2131954240
+          "helpResId": 2131954240,
+          "label": "Drag Off Screen"
         }
-      ]
+      ],
+      "resName": "an_show_scene_v2",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 480,
@@ -11604,9 +11636,11 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482647,
-          "helpResId": 2131954237
+          "helpResId": 2131954237,
+          "label": "Screen ID"
         }
-      ]
+      ],
+      "resName": "an_dismiss_scene_v2"
     },
     {
       "code": 481,
@@ -11621,7 +11655,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482647,
-          "helpResId": 2131954276
+          "helpResId": 2131954276,
+          "label": "Screen ID"
         },
         {
           "id": 1,
@@ -11630,7 +11665,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482648,
-          "helpResId": 2131954241
+          "helpResId": 2131954241,
+          "label": "Element ID"
         },
         {
           "id": 2,
@@ -11639,7 +11675,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482649,
-          "helpResId": 2131954261
+          "helpResId": 2131954261,
+          "label": "Property"
         },
         {
           "id": 3,
@@ -11672,6 +11709,7 @@
           "label": "Limit Passthrough To"
         }
       ],
+      "resName": "an_update_scene_v2",
       "help": "Limit Passthrough To: A comma separated list of variable names (including the %) that represent the variables that you want to pass through to the other task.\n\nOther local variables will not be available in the other task."
     },
     {
@@ -11687,7 +11725,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482647,
-          "helpResId": 2131954254
+          "helpResId": 2131954254,
+          "label": "Screen ID"
         },
         {
           "id": 1,
@@ -11696,7 +11735,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482648,
-          "helpResId": 2131954259
+          "helpResId": 2131954259,
+          "label": "X Position"
         },
         {
           "id": 2,
@@ -11705,7 +11745,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482649,
-          "helpResId": 2131954260
+          "helpResId": 2131954260,
+          "label": "Y Position"
         },
         {
           "id": 3,
@@ -11734,7 +11775,8 @@
           "isMandatory": true,
           "spec": "true",
           "sortOrder": 2147482652,
-          "helpResId": 2131954252
+          "helpResId": 2131954252,
+          "label": "Blocking Overlay"
         },
         {
           "id": 6,
@@ -11743,7 +11785,8 @@
           "isMandatory": true,
           "spec": "0:10000:400",
           "sortOrder": 2147482653,
-          "helpResId": 2131954256
+          "helpResId": 2131954256,
+          "label": "Transition Duration (ms)"
         },
         {
           "id": 7,
@@ -11752,9 +11795,11 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482654,
-          "helpResId": 2131954257
+          "helpResId": 2131954257,
+          "label": "Transition Easing"
         }
-      ]
+      ],
+      "resName": "an_update_scene_v2_overlay"
     },
     {
       "code": 483,
@@ -11777,7 +11822,8 @@
           "isMandatory": true,
           "spec": "t:1",
           "sortOrder": 2147482648,
-          "helpResId": 2131954248
+          "helpResId": 2131954248,
+          "label": "Screen ID"
         },
         {
           "id": 2,
@@ -11786,7 +11832,8 @@
           "isMandatory": false,
           "spec": "s:1:?",
           "sortOrder": 2147482649,
-          "helpResId": 2131954247
+          "helpResId": 2131954247,
+          "label": "Element ID"
         },
         {
           "id": 3,
@@ -11795,9 +11842,11 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482650,
-          "helpResId": 2131954261
+          "helpResId": 2131954261,
+          "label": "Property"
         }
-      ]
+      ],
+      "resName": "an_get_scene_v2_element_value"
     },
     {
       "code": 484,
@@ -11820,7 +11869,8 @@
           "isMandatory": true,
           "spec": "t:1",
           "sortOrder": 2147482648,
-          "helpResId": 2131954278
+          "helpResId": 2131954278,
+          "label": "Screen ID"
         },
         {
           "id": 2,
@@ -11829,9 +11879,11 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482649,
-          "helpResId": 2131954279
+          "helpResId": 2131954279,
+          "label": "Timeout (ms)"
         }
-      ]
+      ],
+      "resName": "an_wait_for_scene_v2_result"
     },
     {
       "code": 485,
@@ -11854,7 +11906,8 @@
           "isMandatory": true,
           "spec": "t:1",
           "sortOrder": 2147482648,
-          "helpResId": 2131954246
+          "helpResId": 2131954246,
+          "label": "Screen ID"
         },
         {
           "id": 2,
@@ -11863,7 +11916,8 @@
           "isMandatory": true,
           "spec": "t:1",
           "sortOrder": 2147482649,
-          "helpResId": 2131954243
+          "helpResId": 2131954243,
+          "label": "Element ID"
         },
         {
           "id": 3,
@@ -11872,7 +11926,8 @@
           "isMandatory": true,
           "spec": "t:1",
           "sortOrder": 2147482650,
-          "helpResId": 2131954242
+          "helpResId": 2131954242,
+          "label": "Action Name"
         },
         {
           "id": 4,
@@ -11902,7 +11957,8 @@
           "sortOrder": 2147482653,
           "label": "Property Type"
         }
-      ]
+      ],
+      "resName": "an_execute_scene_v2_component_action"
     },
     {
       "code": 487,
@@ -11919,7 +11975,8 @@
           "sortOrder": 2147482647,
           "label": "Number"
         }
-      ]
+      ],
+      "resName": "an_clear_quick_setting"
     },
     {
       "code": 488,
@@ -11941,7 +11998,8 @@
           "type": 1,
           "isMandatory": true,
           "spec": "t:5",
-          "sortOrder": 2147482648
+          "sortOrder": 2147482648,
+          "label": "JSON"
         },
         {
           "id": 2,
@@ -11958,7 +12016,8 @@
           "type": 1,
           "isMandatory": false,
           "spec": "t:1:?",
-          "sortOrder": 2147482650
+          "sortOrder": 2147482650,
+          "label": "Indent"
         },
         {
           "id": 4,
@@ -11967,9 +12026,11 @@
           "isMandatory": true,
           "spec": "true",
           "sortOrder": 2147482651,
-          "helpResId": 2131954167
+          "helpResId": 2131954167,
+          "label": "Overwrite Source Variable"
         }
-      ]
+      ],
+      "resName": "an_format_json"
     },
     {
       "code": 490,
@@ -12781,7 +12842,8 @@
           "label": "ID"
         }
       ],
-      "resName": "an_flash"
+      "resName": "an_flash",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 549,
@@ -13168,7 +13230,8 @@
           "label": "Continue Task Immediately"
         }
       ],
-      "resName": "an_say"
+      "resName": "an_say",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 566,
@@ -14036,7 +14099,8 @@
           "label": "Continue Task Immediately"
         }
       ],
-      "resName": "an_say_to_file"
+      "resName": "an_say_to_file",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 701,
@@ -14985,7 +15049,8 @@
           "label": "Keep Tracking"
         }
       ],
-      "resName": "an_get_fix"
+      "resName": "an_get_fix",
+      "help": "Continue Task Immediately: If checked, the action returns immediately and the response is delivered via the AI Chat Response event."
     },
     {
       "code": 903,
@@ -15053,7 +15118,8 @@
           "label": "Output Variables"
         }
       ],
-      "resName": "an_get_voice"
+      "resName": "an_get_voice",
+      "help": "Maximum Results: Number of images to generate. Defaults to 1."
     },
     {
       "code": 904,
@@ -15344,7 +15410,8 @@
           "isMandatory": true,
           "spec": "t:1",
           "sortOrder": 2147482647,
-          "helpResId": 2131954275
+          "helpResId": 2131954275,
+          "label": "Screen ID"
         },
         {
           "id": 1,
@@ -15353,7 +15420,8 @@
           "isMandatory": true,
           "spec": "t:1",
           "sortOrder": 2147482648,
-          "helpResId": 2131954269
+          "helpResId": 2131954269,
+          "label": "Element ID"
         },
         {
           "id": 2,
@@ -15362,7 +15430,8 @@
           "isMandatory": true,
           "spec": "t:1",
           "sortOrder": 2147482649,
-          "helpResId": 2131954270
+          "helpResId": 2131954270,
+          "label": "Event ID"
         },
         {
           "id": 3,
@@ -15371,7 +15440,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482650,
-          "helpResId": 2131954273
+          "helpResId": 2131954273,
+          "label": "Event Param Names"
         },
         {
           "id": 4,
@@ -15380,7 +15450,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482651,
-          "helpResId": 2131954274
+          "helpResId": 2131954274,
+          "label": "Event Param Values"
         },
         {
           "id": 5,
@@ -15389,7 +15460,8 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482652,
-          "helpResId": 2131954271
+          "helpResId": 2131954271,
+          "label": "Event Output Names"
         },
         {
           "id": 6,
@@ -15398,9 +15470,11 @@
           "isMandatory": false,
           "spec": "t:1:?",
           "sortOrder": 2147482653,
-          "helpResId": 2131954272
+          "helpResId": 2131954272,
+          "label": "Event Output Values"
         }
-      ]
+      ],
+      "resName": "an_trigger_scene_v2_event"
     },
     {
       "code": 999,
