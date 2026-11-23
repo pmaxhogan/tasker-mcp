@@ -36,6 +36,7 @@
   "en_gentlealarm": "Gentle Alarm",
   "en_http_request": "HTTP Request",
   "en_intent_received": "Intent Received",
+  "en_java_code": "Java Code",
   "en_kaloer_clock": "Kaloer Clock",
   "en_locale_changed": "Locale Changed",
   "en_logcat_entry": "Logcat Entry",
@@ -70,6 +71,7 @@
   "en_received_sms": "Received Text",
   "en_redditnotify": "Reddit Notify",
   "en_remote_action_token_changed": "Remote Action Token Changed",
+  "en_scene_v2_event": "Scene V2 Event",
   "en_screebl": "Screebl / TSC",
   "en_screen_off": "Display Off",
   "en_screen_on": "Display On",
@@ -90,5 +92,6 @@
   "en_volume_long_press": "Volume Long Press",
   "en_wallpaper_changed": "Wallpaper Changed",
   "en_widgetlocker": "Widget Locker",
+  "en_wifi_changed": "Wifi Changed",
   "en_zoom_click": "Zoom Click"
 }
